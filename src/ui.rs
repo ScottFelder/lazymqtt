@@ -44,6 +44,19 @@ fn title_block(title: &str) -> Block<'_> {
         ))
 }
 
+/// A lazygit-style pane title: a dim `[n]` number prefix (the key that jumps
+/// to this pane) followed by the accent-colored pane name.
+fn pane_title(number: &str, name: &str) -> Line<'static> {
+    Line::from(vec![
+        Span::styled(format!(" [{}] ", number), Style::default().fg(DIM)),
+        Span::styled(
+            name.to_string(),
+            Style::default().fg(ACCENT).add_modifier(Modifier::BOLD),
+        ),
+        Span::raw(" "),
+    ])
+}
+
 fn draw_connections(f: &mut Frame, app: &App, area: Rect) {
     let items: Vec<ListItem> = app
         .config
@@ -198,10 +211,7 @@ fn draw_broker(f: &mut Frame, app: &App, area: Rect) {
             Block::default()
                 .borders(Borders::ALL)
                 .border_style(Style::default().fg(tree_border))
-                .title(Span::styled(
-                    " Topics ",
-                    Style::default().fg(ACCENT).add_modifier(Modifier::BOLD),
-                )),
+                .title(pane_title("1", "Topics")),
         )
         .highlight_style(Style::default().bg(tree_border).fg(Color::Black))
         .highlight_symbol("");
@@ -212,13 +222,26 @@ fn draw_broker(f: &mut Frame, app: &App, area: Rect) {
     }
     f.render_stateful_widget(tree, cols[0], &mut state);
 
-    // Right: message detail for the selected topic, with keyboard selection.
-    let detail_border = if app.focus == Focus::Detail {
+    // Right: Payload (selected message) on top, History (all messages for the
+    // selected topic) below.
+    let right = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints([Constraint::Percentage(55), Constraint::Percentage(45)])
+        .split(cols[1]);
+
+    draw_payload(f, app, right[0]);
+    draw_history(f, app, right[1]);
+}
+
+/// Top-right pane: the payload (and metadata) of whichever message is
+/// currently selected, with keyboard text selection/yank.
+fn draw_payload(f: &mut Frame, app: &App, area: Rect) {
+    let payload_border = if app.focus == Focus::Payload {
         ACCENT
     } else {
         DIM
     };
-    let lines = app.detail_lines();
+    let lines = app.payload_lines();
 
     // Ordered selection span, if a visual selection is active.
     let sel = app.sel_anchor.map(|a| {
@@ -229,7 +252,7 @@ fn draw_broker(f: &mut Frame, app: &App, area: Rect) {
             (b, a)
         }
     });
-    let show_cursor = app.focus == Focus::Detail;
+    let show_cursor = app.focus == Focus::Payload;
 
     let rendered: Vec<Line> = lines
         .iter()
@@ -238,26 +261,100 @@ fn draw_broker(f: &mut Frame, app: &App, area: Rect) {
         .collect();
 
     // Keep the cursor line visible (approximate: counts logical, not wrapped, rows).
-    let inner_h = cols[1].height.saturating_sub(2) as usize;
+    let inner_h = area.height.saturating_sub(2) as usize;
     let scroll = if show_cursor && inner_h > 0 && app.sel_cursor.0 >= inner_h {
         (app.sel_cursor.0 - inner_h + 1) as u16
     } else {
         0
     };
 
-    let detail = Paragraph::new(rendered)
+    let payload = Paragraph::new(rendered)
         .block(
             Block::default()
                 .borders(Borders::ALL)
-                .border_style(Style::default().fg(detail_border))
-                .title(Span::styled(
-                    " Messages ",
-                    Style::default().fg(ACCENT).add_modifier(Modifier::BOLD),
-                )),
+                .border_style(Style::default().fg(payload_border))
+                .title(pane_title("2", "Payload")),
         )
         .wrap(Wrap { trim: false })
         .scroll((scroll, 0));
-    f.render_widget(detail, cols[1]);
+    f.render_widget(payload, area);
+}
+
+/// Bottom-right pane: every message received for the selected topic, newest
+/// first. Selecting an entry here changes which message the Payload pane shows.
+fn draw_history(f: &mut Frame, app: &App, area: Rect) {
+    let history_border = if app.focus == Focus::History {
+        ACCENT
+    } else {
+        DIM
+    };
+    let msgs = app.topic_messages();
+
+    let items: Vec<ListItem> = msgs
+        .iter()
+        .map(|m| {
+            let retain = if m.retained { " R" } else { "" };
+            let expanded = app.is_history_expanded(m);
+            let toggle = if expanded { "▼ " } else { "▶ " };
+            let time_fmt = if expanded {
+                "%m/%d/%Y %H:%M:%S%.3f"
+            } else {
+                "%H:%M:%S%.3f"
+            };
+
+            let mut header = vec![
+                Span::styled(toggle, Style::default().fg(ACCENT)),
+                Span::styled(
+                    m.time.format(time_fmt).to_string(),
+                    Style::default().fg(DIM),
+                ),
+                Span::styled(format!("  q{}{}", m.qos, retain), Style::default().fg(DIM)),
+            ];
+
+            if !expanded {
+                let preview: String = m.payload.chars().take(40).collect();
+                header.push(Span::styled(
+                    format!("  {}", preview),
+                    Style::default().fg(Color::Green),
+                ));
+                return ListItem::new(Line::from(header));
+            }
+
+            // Expanded: pretty-print like the Payload pane, indented under the header.
+            let mut lines = vec![Line::from(header), Line::from("")];
+            for line in m.payload.lines() {
+                lines.push(Line::from(Span::styled(
+                    format!("    {}", line),
+                    Style::default().fg(Color::Green),
+                )));
+            }
+            lines.push(Line::from(""));
+            ListItem::new(lines)
+        })
+        .collect();
+
+    let history = List::new(items)
+        .block(
+            Block::default()
+                .borders(Borders::ALL)
+                .border_style(Style::default().fg(history_border))
+                .title(pane_title("3", "History")),
+        )
+        .highlight_style(Style::default().bg(history_border).fg(Color::Black));
+
+    let mut state = ListState::default();
+    if !msgs.is_empty() {
+        state.select(Some(app.history_selected.min(msgs.len() - 1)));
+    }
+    f.render_stateful_widget(history, area, &mut state);
+
+    if msgs.is_empty() {
+        let hint = Paragraph::new("No messages on this exact topic yet.")
+            .style(Style::default().fg(DIM))
+            .alignment(Alignment::Center);
+        let inner = center_rect(area, 80, 1);
+        f.render_widget(hint, inner);
+    }
 }
 
 /// Render one detail line, applying its base style plus a highlight over the
@@ -404,12 +501,18 @@ fn draw_help(f: &mut Frame, area: Rect) {
         Line::from(""),
         Line::from("Broker screen:"),
         Line::from("  ↑/↓ or j/k   move in tree   ·   →/Enter  expand"),
-        Line::from("  ←            collapse       ·   Tab      switch pane"),
+        Line::from("  ←            collapse       ·   Tab      cycle panes"),
+        Line::from("  1            focus Topics   ·   2        focus Payload"),
+        Line::from("  3            focus History"),
         Line::from("  s            subscribe      ·   u        unsubscribe (selected)"),
         Line::from("  p            publish        ·   c        clear tree"),
         Line::from("  Esc          disconnect     ·   ?        this help"),
         Line::from(""),
-        Line::from("Messages pane (Tab to focus it):"),
+        Line::from("History pane (Tab or 3 to focus it):"),
+        Line::from("  ↑/↓ or j/k   pick which past message Payload shows"),
+        Line::from("  Enter        expand/collapse the selected entry inline"),
+        Line::from(""),
+        Line::from("Payload pane (Tab or 2 to focus it):"),
         Line::from("  ↑/↓/←/→ or hjkl   move cursor   ·   v   start/extend selection"),
         Line::from("  y                 yank to clipboard (whole line if no selection)"),
         Line::from("  Esc               clear selection"),
@@ -443,11 +546,14 @@ fn draw_statusbar(f: &mut Frame, app: &App, area: Rect) {
     let hints = match app.screen {
         Screen::Connections => "n:new e:edit d:del Enter:connect ?:help q:quit",
         Screen::ConnectionForm => "Tab:field Enter:save Esc:cancel",
-        Screen::Broker if app.focus == Focus::Detail => {
-            "hjkl/arrows:move v:select y:yank Tab:tree p:publish ?:help"
+        Screen::Broker if app.focus == Focus::Payload => {
+            "hjkl/arrows:move v:select y:yank 1:topics 3:history p:publish ?:help"
+        }
+        Screen::Broker if app.focus == Focus::History => {
+            "j/k:move Enter:expand/collapse 1:topics 2:payload p:publish ?:help"
         }
         Screen::Broker => {
-            "j/k:move →:expand Tab:messages s:sub u:unsub p:publish c:clear Esc:disconnect"
+            "j/k:move →:expand 2:payload 3:history s:sub u:unsub p:publish c:clear Esc:disconnect"
         }
         Screen::Publish => "Tab:field Enter:publish Esc:cancel",
         Screen::Subscribe => "Enter:subscribe Esc:cancel",

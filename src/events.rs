@@ -108,7 +108,7 @@ fn start_connection(app: &mut App) {
             app.history.clear();
             app.expanded.clear();
             app.tree_selected = 0;
-            app.reset_selection();
+            app.reset_message_view();
             app.focus = Focus::Tree;
             app.screen = Screen::Broker;
         }
@@ -201,9 +201,18 @@ fn broker_keys(app: &mut App, key: KeyEvent) {
     let rows = app.tree.rows(&app.expanded);
     let len = rows.len();
 
-    // When the Messages pane is focused, movement keys drive the text-selection
+    // Number keys jump straight to a pane, lazygit/lazydocker-style, regardless
+    // of which pane currently has focus.
+    match key.code {
+        KeyCode::Char('1') => return app.focus = Focus::Tree,
+        KeyCode::Char('2') => return app.focus = Focus::Payload,
+        KeyCode::Char('3') => return app.focus = Focus::History,
+        _ => {}
+    }
+
+    // When the Payload pane is focused, movement keys drive the text-selection
     // cursor instead of the topic tree. Global actions below still apply.
-    if app.focus == Focus::Detail {
+    if app.focus == Focus::Payload {
         match key.code {
             KeyCode::Char('h') | KeyCode::Left => return app.sel_move_col(-1),
             KeyCode::Char('l') | KeyCode::Right => return app.sel_move_col(1),
@@ -211,6 +220,34 @@ fn broker_keys(app: &mut App, key: KeyEvent) {
             KeyCode::Char('k') | KeyCode::Up => return app.sel_move_line(-1),
             KeyCode::Char('v') => return app.sel_toggle_anchor(),
             KeyCode::Char('y') => return app.sel_yank(),
+            _ => {}
+        }
+    }
+
+    // When the History pane is focused, movement keys pick which past message
+    // (for the selected topic) the Payload pane shows; Enter expands/collapses
+    // the selected entry inline.
+    if app.focus == Focus::History {
+        let msgs = app.topic_messages();
+        match key.code {
+            KeyCode::Char('j') | KeyCode::Down => {
+                if !msgs.is_empty() {
+                    app.history_selected = (app.history_selected + 1).min(msgs.len() - 1);
+                    app.reset_selection();
+                }
+                return;
+            }
+            KeyCode::Char('k') | KeyCode::Up => {
+                app.history_selected = app.history_selected.saturating_sub(1);
+                app.reset_selection();
+                return;
+            }
+            KeyCode::Enter => {
+                if let Some(m) = msgs.get(app.history_selected).copied().cloned() {
+                    app.toggle_history_expanded(&m);
+                }
+                return;
+            }
             _ => {}
         }
     }
@@ -230,10 +267,10 @@ fn broker_keys(app: &mut App, key: KeyEvent) {
         }
         KeyCode::Char('?') => app.screen = Screen::Help,
         KeyCode::Tab => {
-            app.focus = if app.focus == Focus::Tree {
-                Focus::Detail
-            } else {
-                Focus::Tree
+            app.focus = match app.focus {
+                Focus::Tree => Focus::Payload,
+                Focus::Payload => Focus::History,
+                Focus::History => Focus::Tree,
             };
         }
         KeyCode::Char('c') => {
@@ -241,7 +278,7 @@ fn broker_keys(app: &mut App, key: KeyEvent) {
             app.history.clear();
             app.expanded.clear();
             app.tree_selected = 0;
-            app.reset_selection();
+            app.reset_message_view();
         }
         KeyCode::Char('p') => {
             app.publish = PublishBuffer::default();
@@ -250,24 +287,24 @@ fn broker_keys(app: &mut App, key: KeyEvent) {
             }
             app.screen = Screen::Publish;
         }
-        KeyCode::Char('j') | KeyCode::Down => {
+        KeyCode::Char('j') | KeyCode::Down if app.focus == Focus::Tree => {
             if len > 0 {
                 app.tree_selected = (app.tree_selected + 1).min(len - 1);
-                app.reset_selection();
+                app.reset_message_view();
             }
         }
-        KeyCode::Char('k') | KeyCode::Up => {
+        KeyCode::Char('k') | KeyCode::Up if app.focus == Focus::Tree => {
             app.tree_selected = app.tree_selected.saturating_sub(1);
-            app.reset_selection();
+            app.reset_message_view();
         }
-        KeyCode::Right | KeyCode::Enter => {
+        KeyCode::Right | KeyCode::Enter if app.focus == Focus::Tree => {
             if let Some(r) = rows.get(app.tree_selected) {
                 if r.has_children {
                     app.expanded.insert(r.path.clone());
                 }
             }
         }
-        KeyCode::Left => {
+        KeyCode::Left if app.focus == Focus::Tree => {
             if let Some(r) = rows.get(app.tree_selected) {
                 app.expanded.remove(&r.path);
             }

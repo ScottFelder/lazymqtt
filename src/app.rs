@@ -16,7 +16,8 @@ pub enum Screen {
 #[derive(PartialEq, Eq, Clone, Copy)]
 pub enum Focus {
     Tree,
-    Detail,
+    Payload,
+    History,
 }
 
 /// How a detail line should be styled. The text itself is decoration-free so
@@ -29,7 +30,7 @@ pub enum DetailKind {
     Blank,
 }
 
-/// One logical line of the Messages pane, addressable by the selection cursor.
+/// One logical line of the Payload pane, addressable by the selection cursor.
 pub struct DetailLine {
     pub text: String,
     pub kind: DetailKind,
@@ -120,11 +121,20 @@ pub struct App {
     pub tree_selected: usize,
     pub history: Vec<Message>, // recent messages, newest last
 
+    // Which message (within the selected topic's history, newest-first) the
+    // Payload pane is showing. 0 is always the latest message.
+    pub history_selected: usize,
+
+    // Messages currently expanded inline in the History pane, keyed by each
+    // message's millisecond timestamp (good enough uniqueness for a single
+    // topic's stream; a same-millisecond collision just toggles together).
+    pub expanded_history: HashSet<i64>,
+
     pub sub_input: String, // buffer for the subscribe prompt
     pub error: Option<String>,
 
-    // Keyboard text selection in the Messages pane. Both are (line, col) into
-    // the rows returned by `detail_lines`. `sel_anchor` is set once visual
+    // Keyboard text selection in the Payload pane. Both are (line, col) into
+    // the rows returned by `payload_lines`. `sel_anchor` is set once visual
     // selection begins; while it is None the cursor just marks a position.
     pub sel_cursor: (usize, usize),
     pub sel_anchor: Option<(usize, usize)>,
@@ -147,6 +157,8 @@ impl App {
             expanded: HashSet::new(),
             tree_selected: 0,
             history: Vec::new(),
+            history_selected: 0,
+            expanded_history: HashSet::new(),
             sub_input: String::new(),
             error: None,
             sel_cursor: (0, 0),
@@ -181,7 +193,7 @@ impl App {
         self.history.clear();
         self.expanded.clear();
         self.tree_selected = 0;
-        self.reset_selection();
+        self.reset_message_view();
     }
 
     pub fn reset_selection(&mut self) {
@@ -189,10 +201,60 @@ impl App {
         self.sel_anchor = None;
     }
 
-    /// The Messages pane contents for the currently selected topic, as plain
+    /// Call whenever the selected topic changes: jumps the History pane back
+    /// to the latest message, collapses any expanded entries, and clears any
+    /// in-progress Payload selection.
+    pub fn reset_message_view(&mut self) {
+        self.history_selected = 0;
+        self.expanded_history.clear();
+        self.reset_selection();
+    }
+
+    /// Key used to track a message's inline-expanded state in the History pane.
+    pub fn history_key(msg: &Message) -> i64 {
+        msg.time.timestamp_millis()
+    }
+
+    /// Toggle whether the given History-pane message is shown expanded.
+    pub fn toggle_history_expanded(&mut self, msg: &Message) {
+        let key = Self::history_key(msg);
+        if !self.expanded_history.remove(&key) {
+            self.expanded_history.insert(key);
+        }
+    }
+
+    /// Whether the given message is currently expanded in the History pane.
+    pub fn is_history_expanded(&self, msg: &Message) -> bool {
+        self.expanded_history.contains(&Self::history_key(msg))
+    }
+
+    /// All messages received for the currently selected tree topic, newest first.
+    pub fn topic_messages(&self) -> Vec<&Message> {
+        let rows = self.tree.rows(&self.expanded);
+        let Some(row) = rows.get(self.tree_selected.min(rows.len().saturating_sub(1))) else {
+            return Vec::new();
+        };
+        self.history
+            .iter()
+            .rev()
+            .filter(|m| m.topic == row.path)
+            .collect()
+    }
+
+    /// The message currently shown in the Payload pane: whichever entry is
+    /// selected in the History pane (0 = latest).
+    pub fn selected_message(&self) -> Option<&Message> {
+        let msgs = self.topic_messages();
+        if msgs.is_empty() {
+            return None;
+        }
+        msgs.into_iter().nth(self.history_selected)
+    }
+
+    /// The Payload pane contents for the currently selected message, as plain
     /// logical lines. Shared by the renderer and the selection/yank logic so
     /// both agree on line and column positions.
-    pub fn detail_lines(&self) -> Vec<DetailLine> {
+    pub fn payload_lines(&self) -> Vec<DetailLine> {
         let rows = self.tree.rows(&self.expanded);
         let mut out = Vec::new();
 
@@ -204,9 +266,8 @@ impl App {
             return out;
         };
 
-        let path = row.path.clone();
         out.push(DetailLine {
-            text: path.clone(),
+            text: row.path.clone(),
             kind: DetailKind::Header,
         });
         out.push(DetailLine {
@@ -214,40 +275,33 @@ impl App {
             kind: DetailKind::Blank,
         });
 
-        let msgs: Vec<&Message> = self
-            .history
-            .iter()
-            .rev()
-            .filter(|m| m.topic == path)
-            .take(30)
-            .collect();
-        if msgs.is_empty() {
-            out.push(DetailLine {
+        match self.selected_message() {
+            None => out.push(DetailLine {
                 text: "(no messages on this exact topic — it may be a parent node)".into(),
                 kind: DetailKind::Blank,
-            });
-        }
-        for m in msgs {
-            let retain = if m.retained { " R" } else { "" };
-            out.push(DetailLine {
-                text: format!(
-                    "{}  q{}{}",
-                    m.time.format("%m/%d/%Y %H:%M:%S%.3f"),
-                    m.qos,
-                    retain
-                ),
-                kind: DetailKind::Meta,
-            });
-            for line in m.payload.lines() {
+            }),
+            Some(m) => {
+                let retain = if m.retained { " R" } else { "" };
                 out.push(DetailLine {
-                    text: line.to_string(),
-                    kind: DetailKind::Payload,
+                    text: format!(
+                        "{}  q{}{}",
+                        m.time.format("%m/%d/%Y %H:%M:%S%.3f"),
+                        m.qos,
+                        retain
+                    ),
+                    kind: DetailKind::Meta,
                 });
+                out.push(DetailLine {
+                    text: String::new(),
+                    kind: DetailKind::Blank,
+                });
+                for line in m.payload.lines() {
+                    out.push(DetailLine {
+                        text: line.to_string(),
+                        kind: DetailKind::Payload,
+                    });
+                }
             }
-            out.push(DetailLine {
-                text: String::new(),
-                kind: DetailKind::Blank,
-            });
         }
         out
     }
@@ -262,7 +316,7 @@ impl App {
     }
 
     pub fn sel_move_col(&mut self, delta: isize) {
-        let lines = self.detail_lines();
+        let lines = self.payload_lines();
         if lines.is_empty() {
             return;
         }
@@ -278,7 +332,7 @@ impl App {
     }
 
     pub fn sel_move_line(&mut self, delta: isize) {
-        let lines = self.detail_lines();
+        let lines = self.payload_lines();
         if lines.is_empty() {
             return;
         }
@@ -300,7 +354,7 @@ impl App {
     }
 
     pub fn sel_yank(&mut self) {
-        let lines = self.detail_lines();
+        let lines = self.payload_lines();
         if lines.is_empty() {
             return;
         }
@@ -365,10 +419,10 @@ mod tests {
         app.history.push(msg("t", "hello"));
         app.tree_selected = 0;
         app.screen = Screen::Broker;
-        app.focus = Focus::Detail;
+        app.focus = Focus::Payload;
 
         let payload_line =
-            app.detail_lines().iter().position(|l| l.kind == DetailKind::Payload).unwrap();
+            app.payload_lines().iter().position(|l| l.kind == DetailKind::Payload).unwrap();
         for _ in 0..payload_line {
             handle_key(&mut app, KeyEvent::new(KeyCode::Down, KeyModifiers::NONE));
         }
@@ -381,7 +435,7 @@ mod tests {
 
         let (a, b) = (app.sel_anchor.unwrap(), app.sel_cursor);
         let (s, e) = if a <= b { (a, b) } else { (b, a) };
-        assert_eq!(selection_text(&app.detail_lines(), s, e), "hello");
+        assert_eq!(selection_text(&app.payload_lines(), s, e), "hello");
     }
 
     #[test]
@@ -391,7 +445,7 @@ mod tests {
         app.history.push(msg("t", "hello"));
         app.tree_selected = 0;
 
-        let lines = app.detail_lines();
+        let lines = app.payload_lines();
         let payload_line =
             lines.iter().position(|l| l.kind == DetailKind::Payload).unwrap();
         app.sel_cursor = (payload_line, 0);
@@ -403,7 +457,7 @@ mod tests {
 
         let (a, b) = (app.sel_anchor.unwrap(), app.sel_cursor);
         let (s, e) = if a <= b { (a, b) } else { (b, a) };
-        assert_eq!(selection_text(&app.detail_lines(), s, e), "hello");
+        assert_eq!(selection_text(&app.payload_lines(), s, e), "hello");
     }
 }
 
