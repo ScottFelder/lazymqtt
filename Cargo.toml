@@ -1,0 +1,24 @@
+[package]
+name = "lazymqtt"
+version = "0.1.0"
+edition = "2021"
+description = "A fast terminal UI MQTT client, inspired by MQTT Explorer."
+license = "MIT"
+
+[dependencies]
+ratatui = "0.28"
+crossterm = "0.28"
+rumqttc = "0.24"
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "sync", "time"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+directories = "5"
+anyhow = "1"
+uuid = { version = "1", features = ["v4"] }
+chrono = "0.4"
+
+[profile.release]
+lto = true
+opt-level = 3
+codegen-units = 1
+strip = true
