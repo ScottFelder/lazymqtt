@@ -1,9 +1,12 @@
 use crate::app::{App, DetailKind, DetailLine, Focus, PublishBuffer, Screen, Status};
 use ratatui::{
-    layout::{Alignment, Constraint, Direction, Layout, Rect},
+    layout::{Alignment, Constraint, Direction, Layout, Margin, Rect},
     style::{Color, Modifier, Style},
     text::{Line, Span},
-    widgets::{Block, Borders, Clear, List, ListItem, ListState, Paragraph, Wrap},
+    widgets::{
+        Block, Borders, Clear, List, ListItem, ListState, Paragraph, Scrollbar,
+        ScrollbarOrientation, ScrollbarState, Wrap,
+    },
     Frame,
 };
 
@@ -42,6 +45,32 @@ fn title_block(title: &str) -> Block<'_> {
             format!(" {} ", title),
             Style::default().fg(ACCENT).add_modifier(Modifier::BOLD),
         ))
+}
+
+/// Draw a vertical scrollbar along the right inner edge of `area` (a
+/// bordered pane), but only when `total` items/lines exceed the visible
+/// viewport — otherwise the whole pane content already fits and no
+/// scrollbar should be shown.
+fn render_vscrollbar(f: &mut Frame, area: Rect, total: usize, position: usize) {
+    let viewport = area.height.saturating_sub(2) as usize;
+    if viewport == 0 || total <= viewport {
+        return;
+    }
+    let max_pos = total.saturating_sub(viewport);
+    let mut state = ScrollbarState::new(max_pos).position(position.min(max_pos));
+    let scrollbar = Scrollbar::new(ScrollbarOrientation::VerticalRight)
+        .begin_symbol(None)
+        .end_symbol(None)
+        .style(Style::default().fg(DIM))
+        .thumb_style(Style::default().fg(ACCENT));
+    f.render_stateful_widget(
+        scrollbar,
+        area.inner(Margin {
+            vertical: 1,
+            horizontal: 0,
+        }),
+        &mut state,
+    );
 }
 
 /// A lazygit-style pane title: a dim `[n]` number prefix (the key that jumps
@@ -221,6 +250,7 @@ fn draw_broker(f: &mut Frame, app: &App, area: Rect) {
         state.select(Some(app.tree_selected.min(rows.len() - 1)));
     }
     f.render_stateful_widget(tree, cols[0], &mut state);
+    render_vscrollbar(f, cols[0], rows.len(), state.offset());
 
     // Right: Payload (selected message) on top, History (all messages for the
     // selected topic) below.
@@ -268,6 +298,7 @@ fn draw_payload(f: &mut Frame, app: &App, area: Rect) {
         0
     };
 
+    let line_count = rendered.len();
     let payload = Paragraph::new(rendered)
         .block(
             Block::default()
@@ -278,6 +309,7 @@ fn draw_payload(f: &mut Frame, app: &App, area: Rect) {
         .wrap(Wrap { trim: false })
         .scroll((scroll, 0));
     f.render_widget(payload, area);
+    render_vscrollbar(f, area, line_count, scroll as usize);
 }
 
 /// Bottom-right pane: every message received for the selected topic, newest
@@ -347,6 +379,7 @@ fn draw_history(f: &mut Frame, app: &App, area: Rect) {
         state.select(Some(app.history_selected.min(msgs.len() - 1)));
     }
     f.render_stateful_widget(history, area, &mut state);
+    render_vscrollbar(f, area, msgs.len(), state.offset());
 
     if msgs.is_empty() {
         let hint = Paragraph::new("No messages on this exact topic yet.")
