@@ -62,6 +62,11 @@ pub fn connect(conn: &Connection) -> Result<MqttHandle> {
 
     let mut opts = MqttOptions::new(conn.client_id.clone(), conn.host.clone(), conn.port);
     opts.set_keep_alive(Duration::from_secs(30));
+    // rumqttc defaults to a 10KB max packet size for both directions, which is
+    // too small for many real-world payloads (e.g. JSON/binary sensor blobs)
+    // and causes "payload size limit exceeded" errors that tear down and
+    // reconnect the eventloop in a loop. Raise both limits generously.
+    opts.set_max_packet_size(10 * 1024 * 1024, 10 * 1024 * 1024);
     if !conn.username.is_empty() {
         opts.set_credentials(conn.username.clone(), conn.password.clone());
     }
