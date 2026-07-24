@@ -31,6 +31,10 @@ pub fn draw(f: &mut Frame, app: &App) {
             draw_broker(f, app, chunks[0]);
             draw_subscribe(f, &app.sub_input, chunks[0]);
         }
+        Screen::ClearRetained => {
+            draw_broker(f, app, chunks[0]);
+            draw_clear_retained(f, &app.clear_topic, chunks[0]);
+        }
         Screen::Help => draw_help(f, chunks[0]),
     }
 
@@ -513,6 +517,33 @@ fn draw_subscribe(f: &mut Frame, input: &str, area: Rect) {
     f.render_widget(p, popup);
 }
 
+fn draw_clear_retained(f: &mut Frame, topic: &str, area: Rect) {
+    let popup = center_rect(area, 70, 30);
+    f.render_widget(Clear, popup);
+    let lines = vec![
+        Line::from("Clear the retained message on:"),
+        Line::from(""),
+        Line::from(Span::styled(
+            topic.to_string(),
+            Style::default().fg(ACCENT).add_modifier(Modifier::BOLD),
+        )),
+        Line::from(""),
+        Line::from(Span::styled(
+            "Publishes an empty retained message — the broker drops the stored one.",
+            Style::default().fg(DIM),
+        )),
+        Line::from(""),
+        Line::from(Span::styled(
+            "y/Enter: clear · n/Esc: cancel",
+            Style::default().fg(DIM),
+        )),
+    ];
+    let p = Paragraph::new(lines)
+        .block(title_block("Clear Retained Message"))
+        .wrap(Wrap { trim: false });
+    f.render_widget(p, popup);
+}
+
 fn draw_help(f: &mut Frame, area: Rect) {
     let text = vec![
         Line::from(Span::styled(
@@ -537,6 +568,7 @@ fn draw_help(f: &mut Frame, area: Rect) {
         Line::from("  3            focus History"),
         Line::from("  s            subscribe      ·   u        unsubscribe (selected)"),
         Line::from("  p            publish        ·   c        clear tree"),
+        Line::from("  r            clear retained message on selected topic"),
         Line::from("  Esc          disconnect     ·   ?        this help"),
         Line::from(""),
         Line::from("Payload & History panes (Tab or 2/3 to focus):"),
@@ -581,10 +613,11 @@ fn draw_statusbar(f: &mut Frame, app: &App, area: Rect) {
             "hjkl/arrows:move v:select y:yank Enter:expand/collapse 2:payload p:publish ?:help"
         }
         Screen::Broker => {
-            "j/k:move Enter:expand/collapse 2:payload 3:history s:sub u:unsub p:publish Esc:disconnect"
+            "j/k:move Enter:expand 2:payload 3:history s:sub u:unsub p:pub r:clr-retain Esc:disconnect"
         }
         Screen::Publish => "Tab:field Enter:publish Esc:cancel",
         Screen::Subscribe => "Enter:subscribe Esc:cancel",
+        Screen::ClearRetained => "y/Enter:clear retained  n/Esc:cancel",
         Screen::Help => "any key: back",
     };
 
