@@ -297,10 +297,21 @@ fn broker_keys(app: &mut App, key: KeyEvent) {
             app.tree_selected = app.tree_selected.saturating_sub(1);
             app.reset_message_view();
         }
-        KeyCode::Right | KeyCode::Enter if app.focus == Focus::Tree => {
+        KeyCode::Right if app.focus == Focus::Tree => {
             if let Some(r) = rows.get(app.tree_selected) {
                 if r.has_children {
                     app.expanded.insert(r.path.clone());
+                }
+            }
+        }
+        KeyCode::Enter if app.focus == Focus::Tree => {
+            if let Some(r) = rows.get(app.tree_selected) {
+                if r.has_children {
+                    // Toggle: HashSet::remove returns false when it was absent,
+                    // so collapse an expanded node or expand a collapsed one.
+                    if !app.expanded.remove(&r.path) {
+                        app.expanded.insert(r.path.clone());
+                    }
                 }
             }
         }
