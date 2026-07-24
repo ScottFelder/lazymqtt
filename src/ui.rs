@@ -1,5 +1,5 @@
 use crate::app::{App, DetailKind, DetailLine, Focus, PaneFold, PublishBuffer, Screen, Status};
-use crate::plugin::Severity;
+use crate::plugin::{InspectorStyle, Severity};
 use ratatui::{
     layout::{Alignment, Constraint, Direction, Layout, Margin, Rect},
     style::{Color, Modifier, Style},
@@ -452,6 +452,15 @@ fn style_for(kind: DetailKind) -> Style {
             Severity::Info => ACCENT,
             Severity::Warn => Color::Yellow,
             Severity::Error => Color::Red,
+        }),
+        DetailKind::Syntax(style) => Style::default().fg(match style {
+            // Braces, brackets, quotes, colons, commas, indentation.
+            InspectorStyle::Punctuation => Color::White,
+            InspectorStyle::Key => ACCENT,
+            InspectorStyle::Str => Color::Green,
+            InspectorStyle::Number => Color::Yellow,
+            InspectorStyle::Literal => Color::Magenta,
+            InspectorStyle::Plain => Color::Gray,
         }),
     }
 }

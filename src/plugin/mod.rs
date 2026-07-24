@@ -19,8 +19,8 @@ mod builtin;
 mod config;
 
 pub use api::{
-    Annotation, InspectMessage, InspectorView, PluginAction, PluginContext, PluginEvent,
-    PluginMetadata, Severity,
+    Annotation, InspectMessage, InspectorStyle, InspectorView, PluginAction, PluginContext,
+    PluginEvent, PluginMetadata, Severity,
 };
 
 use config::PluginConfig;
@@ -71,7 +71,13 @@ impl PluginHost {
     /// persisted enable/disable state.
     pub fn with_builtins() -> Self {
         let config_dir = plugin_config_dir();
-        let config = PluginConfig::load(&config_dir);
+        // Tests must not read (or be perturbed by) the user's real plugin
+        // config; default keeps every built-in enabled and isolated.
+        let config = if cfg!(test) {
+            PluginConfig::default()
+        } else {
+            PluginConfig::load(&config_dir)
+        };
         let ctx = PluginContext {
             config_dir: config_dir.clone(),
         };

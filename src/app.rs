@@ -1,7 +1,8 @@
 use crate::config::{Config, Connection};
 use crate::mqtt::{Message, MqttCommand, MqttHandle};
 use crate::plugin::{
-    Annotation, InspectMessage, InspectorView, PluginAction, PluginEvent, PluginHost, Severity,
+    Annotation, InspectMessage, InspectorStyle, InspectorView, PluginAction, PluginEvent,
+    PluginHost, Severity,
 };
 use crate::tree::TopicTree;
 use std::collections::{HashMap, HashSet};
@@ -44,6 +45,8 @@ pub enum DetailKind {
     Blank,
     /// A plugin annotation, colored by its severity.
     Annotation(Severity),
+    /// A token in a plugin inspector view, colored by its syntax kind.
+    Syntax(InspectorStyle),
 }
 
 /// One logical line of a selectable pane (Payload or History).
@@ -458,7 +461,16 @@ impl App {
                     }
                     Some(i) => {
                         for line in &views[i].lines {
-                            out.push(DetailLine::indented(2, line, DetailKind::Payload));
+                            let segs = line
+                                .iter()
+                                .map(|sp| (sp.text.clone(), DetailKind::Syntax(sp.style)))
+                                .collect();
+                            out.push(DetailLine {
+                                lead: "  ".to_string(),
+                                lead_kind: DetailKind::Blank,
+                                segs,
+                                msg: None,
+                            });
                         }
                     }
                 }
