@@ -10,6 +10,7 @@ pub enum Screen {
     Broker,
     Publish,
     Subscribe,
+    ClearRetained,
     Help,
 }
 
@@ -191,7 +192,8 @@ pub struct App {
     // topic's stream; a same-millisecond collision just toggles together).
     pub expanded_history: HashSet<i64>,
 
-    pub sub_input: String, // buffer for the subscribe prompt
+    pub sub_input: String,   // buffer for the subscribe prompt
+    pub clear_topic: String, // topic awaiting retained-message clear confirmation
     pub error: Option<String>,
 
     // Keyboard text selection in the focused pane (Payload or History). Both
@@ -221,6 +223,7 @@ impl App {
             history_selected: 0,
             expanded_history: HashSet::new(),
             sub_input: String::new(),
+            clear_topic: String::new(),
             error: None,
             sel_cursor: (0, 0),
             sel_anchor: None,

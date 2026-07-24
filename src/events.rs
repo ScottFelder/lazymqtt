@@ -11,6 +11,7 @@ pub fn handle_key(app: &mut App, key: KeyEvent) {
         Screen::Broker => broker_keys(app, key),
         Screen::Publish => publish_keys(app, key),
         Screen::Subscribe => subscribe_keys(app, key),
+        Screen::ClearRetained => clear_retained_keys(app, key),
         Screen::Help => {
             app.screen = if app.handle.is_some() {
                 Screen::Broker
@@ -349,7 +350,32 @@ fn broker_keys(app: &mut App, key: KeyEvent) {
                 app.error = Some(format!("unsubscribed from {}", topic));
             }
         }
+        KeyCode::Char('r') => {
+            if let Some(r) = rows.get(app.tree_selected) {
+                app.clear_topic = r.path.clone();
+                app.screen = Screen::ClearRetained;
+            }
+        }
         _ => {}
+    }
+}
+
+fn clear_retained_keys(app: &mut App, key: KeyEvent) {
+    match key.code {
+        KeyCode::Char('y') | KeyCode::Char('Y') | KeyCode::Enter => {
+            let topic = app.clear_topic.clone();
+            // Clearing a retained message = publish a zero-byte retained payload
+            // to the same topic. The broker then drops the stored message.
+            app.send(MqttCommand::Publish {
+                topic: topic.clone(),
+                payload: String::new(),
+                qos: 0,
+                retain: true,
+            });
+            app.error = Some(format!("cleared retained message on {}", topic));
+            app.screen = Screen::Broker;
+        }
+        _ => app.screen = Screen::Broker,
     }
 }
 
