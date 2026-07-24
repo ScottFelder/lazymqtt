@@ -1,6 +1,8 @@
 use crate::config::{Config, Connection};
 use crate::mqtt::{Message, MqttCommand, MqttHandle};
-use crate::plugin::{Annotation, PluginAction, PluginEvent, PluginHost, Severity};
+use crate::plugin::{
+    Annotation, InspectMessage, InspectorView, PluginAction, PluginEvent, PluginHost, Severity,
+};
 use crate::tree::TopicTree;
 use std::collections::{HashMap, HashSet};
 
@@ -215,6 +217,9 @@ pub struct App {
     pub sub_input: String,       // buffer for the subscribe prompt
     pub clear_topic: String,     // topic awaiting retained-message clear confirmation
     pub plugins_selected: usize, // cursor in the Plugins management screen
+    // Which Payload-pane view is active: 0 = raw text, 1.. = plugin inspector
+    // views (in plugin order). Clamped when fewer views are available.
+    pub payload_view: usize,
     pub error: Option<String>,
 
     // Keyboard text selection in the focused pane (Payload or History). Both
@@ -250,6 +255,7 @@ impl App {
             sub_input: String::new(),
             clear_topic: String::new(),
             plugins_selected: 0,
+            payload_view: 0,
             error: None,
             sel_cursor: (0, 0),
             sel_anchor: None,
@@ -362,6 +368,7 @@ impl App {
     pub fn reset_message_view(&mut self) {
         self.history_selected = 0;
         self.expanded_history.clear();
+        self.payload_view = 0;
         self.reset_selection();
     }
 
@@ -440,12 +447,58 @@ impl App {
                     ));
                 }
                 out.push(DetailLine::blank());
-                for line in m.payload.lines() {
-                    out.push(DetailLine::indented(2, line, DetailKind::Payload));
+
+                // Body: the raw payload (view 0) or a plugin inspector view.
+                let views = self.current_inspector_views();
+                match self.payload_view.min(views.len()).checked_sub(1) {
+                    None => {
+                        for line in m.payload.lines() {
+                            out.push(DetailLine::indented(2, line, DetailKind::Payload));
+                        }
+                    }
+                    Some(i) => {
+                        for line in &views[i].lines {
+                            out.push(DetailLine::indented(2, line, DetailKind::Payload));
+                        }
+                    }
                 }
             }
         }
         out
+    }
+
+    /// Inspector views offered by enabled plugins for the selected message.
+    fn current_inspector_views(&self) -> Vec<InspectorView> {
+        match self.selected_message() {
+            Some(m) => self.plugins.inspect(&InspectMessage {
+                topic: m.topic.clone(),
+                payload: m.payload.clone(),
+                qos: m.qos,
+                retained: m.retained,
+            }),
+            None => Vec::new(),
+        }
+    }
+
+    /// Cycle the Payload pane through raw text and each available inspector
+    /// view. The line set changes, so any in-progress selection is reset.
+    pub fn cycle_payload_view(&mut self) {
+        let count = self.current_inspector_views().len() + 1; // +1 for raw
+        self.payload_view = (self.payload_view + 1) % count;
+        self.reset_selection();
+    }
+
+    /// Label of the active Payload view, or `None` when only the raw view
+    /// exists (nothing to switch to).
+    pub fn payload_view_label(&self) -> Option<String> {
+        let views = self.current_inspector_views();
+        if views.is_empty() {
+            return None;
+        }
+        Some(match self.payload_view.min(views.len()).checked_sub(1) {
+            None => "raw".to_string(),
+            Some(i) => views[i].label.clone(),
+        })
     }
 
     /// The History pane contents: every message for the selected topic, newest
@@ -834,6 +887,45 @@ mod tests {
         assert!(actions
             .iter()
             .any(|a| matches!(a, PluginAction::Annotate { id: 7, .. })));
+    }
+
+    #[test]
+    fn payload_view_cycles_between_raw_and_json() {
+        let mut app = App::new();
+        app.push_message(msg("data", r#"{"a":1}"#)); // slash-free topic => row is the leaf
+        app.tree_selected = 0;
+
+        // Raw by default; a JSON view is available (label present).
+        assert_eq!(app.payload_view_label().as_deref(), Some("raw"));
+
+        // Cycle to the JSON view: payload_lines now shows pretty-printed JSON.
+        app.cycle_payload_view();
+        assert_eq!(app.payload_view_label().as_deref(), Some("JSON"));
+        let body: String = app
+            .payload_lines()
+            .iter()
+            .map(|l| l.text())
+            .collect::<Vec<_>>()
+            .join("\n");
+        assert!(
+            body.contains("\"a\": 1"),
+            "expected pretty JSON, got: {body}"
+        );
+
+        // Cycling wraps back to raw.
+        app.cycle_payload_view();
+        assert_eq!(app.payload_view_label().as_deref(), Some("raw"));
+    }
+
+    #[test]
+    fn non_json_payload_has_no_alternate_view() {
+        let mut app = App::new();
+        app.push_message(msg("data", "plain text"));
+        app.tree_selected = 0;
+
+        assert_eq!(app.payload_view_label(), None);
+        app.cycle_payload_view(); // no-op: only the raw view exists
+        assert_eq!(app.payload_view, 0);
     }
 }
 

@@ -89,3 +89,21 @@ pub struct PluginMetadata {
 pub struct PluginContext {
     pub config_dir: PathBuf,
 }
+
+/// The selected message handed to an inspector provider (`Plugin::inspect`).
+#[derive(Debug, Clone)]
+pub struct InspectMessage {
+    pub topic: String,
+    pub payload: String,
+    pub qos: u8,
+    pub retained: bool,
+}
+
+/// An alternative rendering of a payload supplied by a plugin (e.g. pretty
+/// JSON). `lines` are plain strings the core turns into Payload-pane rows, so
+/// the raw text view always stays available alongside it.
+#[derive(Debug, Clone)]
+pub struct InspectorView {
+    pub label: String,
+    pub lines: Vec<String>,
+}

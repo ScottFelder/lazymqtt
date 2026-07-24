@@ -18,7 +18,10 @@ pub mod api;
 mod builtin;
 mod config;
 
-pub use api::{Annotation, PluginAction, PluginContext, PluginEvent, PluginMetadata, Severity};
+pub use api::{
+    Annotation, InspectMessage, InspectorView, PluginAction, PluginContext, PluginEvent,
+    PluginMetadata, Severity,
+};
 
 use config::PluginConfig;
 use directories::ProjectDirs;
@@ -35,6 +38,13 @@ pub trait Plugin {
     /// React to an event, optionally emitting actions. Default: ignore.
     fn on_event(&mut self, _event: &PluginEvent) -> Vec<PluginAction> {
         Vec::new()
+    }
+
+    /// Optionally supply an alternative rendering of the selected payload (a
+    /// structured view). Read-only; return `None` when the plugin has nothing
+    /// to offer for this message. Default: no view.
+    fn inspect(&self, _msg: &InspectMessage) -> Option<InspectorView> {
+        None
     }
 }
 
@@ -96,6 +106,15 @@ impl PluginHost {
     /// Metadata for every registered plugin (for the help listing).
     pub fn metadata(&self) -> Vec<PluginMetadata> {
         self.slots.iter().map(|s| s.plugin.metadata()).collect()
+    }
+
+    /// Alternative payload views offered by the enabled plugins, in plugin order.
+    pub fn inspect(&self, msg: &InspectMessage) -> Vec<InspectorView> {
+        self.slots
+            .iter()
+            .filter(|s| s.enabled)
+            .filter_map(|s| s.plugin.inspect(msg))
+            .collect()
     }
 
     /// Name + enabled state for every plugin (for the management view).

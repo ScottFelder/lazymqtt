@@ -314,10 +314,19 @@ fn draw_payload(f: &mut Frame, app: &App, area: Rect, collapsed: bool) {
     } else {
         DIM
     };
+    // Show the active view (e.g. "JSON") when a plugin offers an alternative to
+    // the raw text, hinting that `i` cycles views.
+    let mut title = folded_title("2", "Payload", collapsed);
+    if let Some(label) = app.payload_view_label() {
+        title.spans.push(Span::styled(
+            format!("{} ", label),
+            Style::default().fg(ACCENT),
+        ));
+    }
     let block = Block::default()
         .borders(Borders::ALL)
         .border_style(Style::default().fg(payload_border))
-        .title(folded_title("2", "Payload", collapsed));
+        .title(title);
     if collapsed {
         f.render_widget(block, area);
         return;
@@ -679,6 +688,7 @@ fn draw_help(f: &mut Frame, app: &App, area: Rect) {
         Line::from("  y                 yank to clipboard (whole line if no selection)"),
         Line::from("  Esc               clear selection"),
         Line::from("  z                 collapse/expand this pane (the other fills the space)"),
+        Line::from("  i                 cycle Payload view (raw ↔ plugin views, e.g. JSON)"),
         Line::from("  Enter (History)   expand/collapse the entry under the cursor"),
         Line::from(""),
         Line::from("Clipboard:"),
@@ -728,7 +738,7 @@ fn draw_statusbar(f: &mut Frame, app: &App, area: Rect) {
         Screen::Connections => "n:new e:edit d:del Enter:connect ?:help q:quit",
         Screen::ConnectionForm => "Tab:field Enter:save Esc:cancel",
         Screen::Broker if app.focus == Focus::Payload => {
-            "hjkl/arrows:move v:select y:yank z:fold-pane 1:topics 3:history p:publish ?:help"
+            "hjkl:move v:select y:yank i:view z:fold-pane 1:topics 3:history p:publish ?:help"
         }
         Screen::Broker if app.focus == Focus::History => {
             "hjkl:move v:select y:yank Enter:expand-entry z:fold-pane 2:payload p:publish ?:help"

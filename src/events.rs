@@ -368,6 +368,7 @@ fn broker_keys(app: &mut App, key: KeyEvent) {
             }
         }
         KeyCode::Char('z') => app.toggle_pane_fold(),
+        KeyCode::Char('i') => app.cycle_payload_view(),
         KeyCode::Char('P') => {
             app.plugins_selected = 0;
             app.screen = Screen::Plugins;
