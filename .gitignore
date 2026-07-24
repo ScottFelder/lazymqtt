@@ -1,4 +1,18 @@
-
+# Rust build output
 **/target/
+
+# rustfmt backups
+**/*.rs.bk
+
+# Editor / IDE
 **/.idea
+**/.vscode
+**/*.swp
+*~
+
+# AI assistant local state
 **/.claude
+
+# macOS
+.DS_Store
+**/.DS_Store
