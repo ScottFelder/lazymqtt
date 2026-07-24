@@ -6,6 +6,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
+use uuid::Uuid;
 
 #[derive(Debug, Clone)]
 pub struct Message {
@@ -62,7 +63,19 @@ pub fn connect(conn: &Connection) -> Result<MqttHandle> {
     let (ev_tx, ev_rx) = tokio::sync::mpsc::unbounded_channel::<MqttEvent>();
     let (cmd_tx, mut cmd_rx) = tokio::sync::mpsc::unbounded_channel::<MqttCommand>();
 
-    let mut opts = MqttOptions::new(conn.client_id.clone(), conn.host.clone(), conn.port);
+    // Append a short random suffix so every running connection has a unique
+    // client id. Two instances (or a leftover) sharing an id make the broker
+    // repeatedly kick one for the other ("session taken over"), toggling the
+    // connection; a unique id per connect avoids that entirely. The configured
+    // id stays as a recognizable prefix in broker logs.
+    let base = if conn.client_id.trim().is_empty() {
+        "lazymqtt"
+    } else {
+        conn.client_id.trim()
+    };
+    let client_id = format!("{}-{}", base, &Uuid::new_v4().simple().to_string()[..6]);
+
+    let mut opts = MqttOptions::new(client_id, conn.host.clone(), conn.port);
     opts.set_keep_alive(Duration::from_secs(30));
     // rumqttc defaults to a 10KB max packet size for both directions, which is
     // too small for many real-world payloads (e.g. JSON/binary sensor blobs)
