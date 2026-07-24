@@ -533,8 +533,9 @@ fn draw_help(f: &mut Frame, area: Rect) {
         Line::from("  Enter        save            ·   Esc    cancel"),
         Line::from(""),
         Line::from("Broker screen:"),
-        Line::from("  ↑/↓ or j/k   move in tree   ·   →/Enter  expand"),
-        Line::from("  ←            collapse       ·   Tab      cycle panes"),
+        Line::from("  ↑/↓ or j/k   move in tree   ·   Enter    expand/collapse"),
+        Line::from("  →            expand         ·   ←        collapse"),
+        Line::from("  Tab          cycle panes"),
         Line::from("  1            focus Topics   ·   2        focus Payload"),
         Line::from("  3            focus History"),
         Line::from("  s            subscribe      ·   u        unsubscribe (selected)"),
@@ -586,7 +587,7 @@ fn draw_statusbar(f: &mut Frame, app: &App, area: Rect) {
             "j/k:move Enter:expand/collapse 1:topics 2:payload p:publish ?:help"
         }
         Screen::Broker => {
-            "j/k:move →:expand 2:payload 3:history s:sub u:unsub p:publish c:clear Esc:disconnect"
+            "j/k:move Enter:expand/collapse 2:payload 3:history s:sub u:unsub p:publish Esc:disconnect"
         }
         Screen::Publish => "Tab:field Enter:publish Esc:cancel",
         Screen::Subscribe => "Enter:subscribe Esc:cancel",
