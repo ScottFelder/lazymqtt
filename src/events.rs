@@ -100,6 +100,12 @@ fn start_connection(app: &mut App) {
     let Some(conn) = app.config.connections.get(idx).cloned() else {
         return;
     };
+    // Tear down any live connection first so its background task stops instead
+    // of lingering and reconnecting — two clients with the same id would
+    // otherwise fight ("connection closed by peer").
+    if app.handle.is_some() {
+        app.disconnect();
+    }
     match mqtt::connect(&conn) {
         Ok(handle) => {
             app.handle = Some(handle);
