@@ -1,7 +1,9 @@
 use crate::config::Connection;
 use anyhow::Result;
 use chrono::{DateTime, Local};
-use rumqttc::{AsyncClient, Event, Incoming, MqttOptions, QoS, Transport};
+use rumqttc::{AsyncClient, Event, Incoming, MqttOptions, Outgoing, QoS, Transport};
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Arc;
 use std::time::Duration;
 use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
 
@@ -77,10 +79,18 @@ pub fn connect(conn: &Connection) -> Result<MqttHandle> {
     let subs = conn.subscriptions.clone();
     let (client, mut eventloop) = AsyncClient::new(opts, 64);
 
+    // Set once the UI asks to disconnect. rumqttc's eventloop reconnects on its
+    // own as long as it keeps being polled, so a user disconnect must both stop
+    // the command pump AND break the event loop — otherwise the old connection
+    // lives on, reconnecting forever, and fights the next connection for the
+    // same client id ("connection closed by peer").
+    let stop = Arc::new(AtomicBool::new(false));
+
     // Command pump: forward UI commands to the client.
     {
         let client = client.clone();
         let ev_tx = ev_tx.clone();
+        let stop = stop.clone();
         tokio::spawn(async move {
             while let Some(cmd) = cmd_rx.recv().await {
                 let res = match cmd {
@@ -99,6 +109,7 @@ pub fn connect(conn: &Connection) -> Result<MqttHandle> {
                             .await
                     }
                     MqttCommand::Disconnect => {
+                        stop.store(true, Ordering::SeqCst);
                         let _ = client.disconnect().await;
                         break;
                     }
@@ -134,11 +145,20 @@ pub fn connect(conn: &Connection) -> Result<MqttHandle> {
                     };
                     let _ = ev_tx.send(MqttEvent::Message(msg));
                 }
+                // Our own disconnect went out: the connection is closing for good.
+                Ok(Event::Outgoing(Outgoing::Disconnect)) => break,
                 Ok(_) => {}
                 Err(e) => {
+                    // Don't announce or retry a disconnect the user asked for.
+                    if stop.load(Ordering::SeqCst) {
+                        break;
+                    }
                     let _ = ev_tx.send(MqttEvent::Disconnected(e.to_string()));
                     tokio::time::sleep(Duration::from_secs(3)).await;
                 }
+            }
+            if stop.load(Ordering::SeqCst) {
+                break;
             }
         }
     });
