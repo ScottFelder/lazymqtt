@@ -6,16 +6,23 @@
 //! emit for `App` to apply. This keeps plugins from reaching into `App`
 //! internals or the render loop directly.
 //!
+//! Each plugin can be enabled/disabled; the state persists in a `plugins/`
+//! config dir (see [`config`]). A disabled plugin stays loaded but receives no
+//! events.
+//!
 //! Dispatch is synchronous on the UI loop, so built-in plugins must be fast.
 //! Bounded queues / isolation belong to a future external-process model; this
 //! module is the stable internal API those later models would sit behind.
 
 pub mod api;
 mod builtin;
+mod config;
 
 pub use api::{Annotation, PluginAction, PluginContext, PluginEvent, PluginMetadata, Severity};
 
+use config::PluginConfig;
 use directories::ProjectDirs;
+use std::path::PathBuf;
 
 pub trait Plugin {
     fn metadata(&self) -> PluginMetadata;
@@ -31,38 +38,89 @@ pub trait Plugin {
     }
 }
 
-/// Owns the registered plugins and fans events out to them.
+struct Slot {
+    plugin: Box<dyn Plugin>,
+    enabled: bool,
+}
+
+/// One row for the plugins management view.
+pub struct PluginEntry {
+    pub metadata: PluginMetadata,
+    pub enabled: bool,
+}
+
+/// Owns the registered plugins and fans events out to the enabled ones.
 pub struct PluginHost {
-    plugins: Vec<Box<dyn Plugin>>,
+    slots: Vec<Slot>,
+    config: PluginConfig,
+    config_dir: PathBuf,
 }
 
 impl PluginHost {
-    /// Build the host with the built-in plugins registered and loaded.
+    /// Build the host with the built-in plugins registered and loaded, applying
+    /// persisted enable/disable state.
     pub fn with_builtins() -> Self {
+        let config_dir = plugin_config_dir();
+        let config = PluginConfig::load(&config_dir);
         let ctx = PluginContext {
-            config_dir: plugin_config_dir(),
+            config_dir: config_dir.clone(),
         };
-        let mut plugins: Vec<Box<dyn Plugin>> = builtin::all();
-        for p in plugins.iter_mut() {
-            // A plugin that fails to load is skipped rather than killing the app;
-            // it simply won't receive events (its actions are never produced).
-            let _ = p.on_load(&ctx);
+
+        let slots = builtin::all()
+            .into_iter()
+            .map(|mut plugin| {
+                // A plugin that fails to load is disabled rather than killing
+                // the app; it stays listed but receives no events.
+                let loaded = plugin.on_load(&ctx).is_ok();
+                let enabled = loaded && config.is_enabled(plugin.metadata().name);
+                Slot { plugin, enabled }
+            })
+            .collect();
+
+        Self {
+            slots,
+            config,
+            config_dir,
         }
-        Self { plugins }
     }
 
-    /// Dispatch an event to every plugin, collecting all emitted actions.
+    /// Dispatch an event to every enabled plugin, collecting all emitted actions.
     pub fn dispatch(&mut self, event: &PluginEvent) -> Vec<PluginAction> {
         let mut actions = Vec::new();
-        for p in self.plugins.iter_mut() {
-            actions.extend(p.on_event(event));
+        for slot in self.slots.iter_mut().filter(|s| s.enabled) {
+            actions.extend(slot.plugin.on_event(event));
         }
         actions
     }
 
-    /// Metadata for every registered plugin (for the help/plugins listing).
+    /// Metadata for every registered plugin (for the help listing).
     pub fn metadata(&self) -> Vec<PluginMetadata> {
-        self.plugins.iter().map(|p| p.metadata()).collect()
+        self.slots.iter().map(|s| s.plugin.metadata()).collect()
+    }
+
+    /// Name + enabled state for every plugin (for the management view).
+    pub fn entries(&self) -> Vec<PluginEntry> {
+        self.slots
+            .iter()
+            .map(|s| PluginEntry {
+                metadata: s.plugin.metadata(),
+                enabled: s.enabled,
+            })
+            .collect()
+    }
+
+    /// Number of registered plugins (enabled or not).
+    pub fn count(&self) -> usize {
+        self.slots.len()
+    }
+
+    /// Flip the enabled state of the plugin at `index` and persist it.
+    pub fn toggle(&mut self, index: usize) {
+        if let Some(slot) = self.slots.get_mut(index) {
+            slot.enabled = !slot.enabled;
+            self.config.set(slot.plugin.metadata().name, slot.enabled);
+            let _ = self.config.save(&self.config_dir);
+        }
     }
 }
 
@@ -74,8 +132,8 @@ impl Default for PluginHost {
 
 /// Where plugin-scoped config/state lives — a `plugins/` dir beside
 /// `connections.json`, kept separate from connection profiles on purpose.
-fn plugin_config_dir() -> std::path::PathBuf {
+fn plugin_config_dir() -> PathBuf {
     ProjectDirs::from("dev", "lazymqtt", "lazymqtt")
         .map(|d| d.config_dir().join("plugins"))
-        .unwrap_or_else(|| std::path::PathBuf::from("plugins"))
+        .unwrap_or_else(|| PathBuf::from("plugins"))
 }

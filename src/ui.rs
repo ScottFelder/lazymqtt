@@ -36,6 +36,7 @@ pub fn draw(f: &mut Frame, app: &App) {
             draw_broker(f, app, chunks[0]);
             draw_clear_retained(f, &app.clear_topic, chunks[0]);
         }
+        Screen::Plugins => draw_plugins(f, app, chunks[0]),
         Screen::Help => draw_help(f, app, chunks[0]),
     }
 
@@ -604,6 +605,48 @@ fn draw_clear_retained(f: &mut Frame, topic: &str, area: Rect) {
     f.render_widget(p, popup);
 }
 
+fn draw_plugins(f: &mut Frame, app: &App, area: Rect) {
+    let entries = app.plugins.entries();
+    let items: Vec<ListItem> = entries
+        .iter()
+        .map(|e| {
+            let (check, check_color) = if e.enabled {
+                ("[x]", Color::Green)
+            } else {
+                ("[ ]", DIM)
+            };
+            ListItem::new(Line::from(vec![
+                Span::styled(format!("{} ", check), Style::default().fg(check_color)),
+                Span::styled(
+                    format!("{:<16}", e.metadata.name),
+                    Style::default().fg(Color::White),
+                ),
+                Span::styled(
+                    format!("v{}  ", e.metadata.version),
+                    Style::default().fg(DIM),
+                ),
+                Span::styled(e.metadata.description.to_string(), Style::default().fg(DIM)),
+            ]))
+        })
+        .collect();
+
+    let list = List::new(items)
+        .block(title_block("Plugins — space to toggle · Esc to close"))
+        .highlight_style(
+            Style::default()
+                .bg(ACCENT)
+                .fg(Color::Black)
+                .add_modifier(Modifier::BOLD),
+        )
+        .highlight_symbol("▶ ");
+
+    let mut state = ListState::default();
+    if !entries.is_empty() {
+        state.select(Some(app.plugins_selected.min(entries.len() - 1)));
+    }
+    f.render_stateful_widget(list, area, &mut state);
+}
+
 fn draw_help(f: &mut Frame, app: &App, area: Rect) {
     let mut text = vec![
         Line::from(Span::styled(
@@ -643,7 +686,7 @@ fn draw_help(f: &mut Frame, app: &App, area: Rect) {
         Line::from(""),
     ];
 
-    text.push(Line::from("Plugins:"));
+    text.push(Line::from("Plugins (press P to enable/disable):"));
     for meta in app.plugins.metadata() {
         text.push(Line::from(vec![
             Span::styled(
@@ -696,6 +739,7 @@ fn draw_statusbar(f: &mut Frame, app: &App, area: Rect) {
         Screen::Publish => "Tab:field Enter:publish Esc:cancel",
         Screen::Subscribe => "Enter:subscribe Esc:cancel",
         Screen::ClearRetained => "y/Enter:clear retained  n/Esc:cancel",
+        Screen::Plugins => "j/k:move space/Enter:toggle Esc:back",
         Screen::Help => "any key: back",
     };
 

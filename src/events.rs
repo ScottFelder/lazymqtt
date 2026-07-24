@@ -12,6 +12,7 @@ pub fn handle_key(app: &mut App, key: KeyEvent) {
         Screen::Publish => publish_keys(app, key),
         Screen::Subscribe => subscribe_keys(app, key),
         Screen::ClearRetained => clear_retained_keys(app, key),
+        Screen::Plugins => plugins_keys(app, key),
         Screen::Help => {
             app.screen = if app.handle.is_some() {
                 Screen::Broker
@@ -57,6 +58,10 @@ fn connections_keys(app: &mut App, key: KeyEvent) {
     match key.code {
         KeyCode::Char('q') => app.should_quit = true,
         KeyCode::Char('?') => app.screen = Screen::Help,
+        KeyCode::Char('P') => {
+            app.plugins_selected = 0;
+            app.screen = Screen::Plugins;
+        }
         KeyCode::Char('j') | KeyCode::Down => {
             if len > 0 {
                 app.conn_selected = (app.conn_selected + 1) % len;
@@ -363,6 +368,37 @@ fn broker_keys(app: &mut App, key: KeyEvent) {
             }
         }
         KeyCode::Char('z') => app.toggle_pane_fold(),
+        KeyCode::Char('P') => {
+            app.plugins_selected = 0;
+            app.screen = Screen::Plugins;
+        }
+        _ => {}
+    }
+}
+
+fn plugins_keys(app: &mut App, key: KeyEvent) {
+    let len = app.plugins.count();
+    match key.code {
+        KeyCode::Esc | KeyCode::Char('q') | KeyCode::Char('P') => {
+            app.screen = if app.handle.is_some() {
+                Screen::Broker
+            } else {
+                Screen::Connections
+            };
+        }
+        KeyCode::Char('j') | KeyCode::Down => {
+            if len > 0 {
+                app.plugins_selected = (app.plugins_selected + 1).min(len - 1);
+            }
+        }
+        KeyCode::Char('k') | KeyCode::Up => {
+            app.plugins_selected = app.plugins_selected.saturating_sub(1);
+        }
+        KeyCode::Char(' ') | KeyCode::Enter => {
+            if len > 0 {
+                app.plugins.toggle(app.plugins_selected);
+            }
+        }
         _ => {}
     }
 }

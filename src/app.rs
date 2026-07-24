@@ -12,6 +12,7 @@ pub enum Screen {
     Publish,
     Subscribe,
     ClearRetained,
+    Plugins,
     Help,
 }
 
@@ -211,8 +212,9 @@ pub struct App {
     // stable message id (collision-free, unlike the old millisecond timestamp).
     pub expanded_history: HashSet<u64>,
 
-    pub sub_input: String,   // buffer for the subscribe prompt
-    pub clear_topic: String, // topic awaiting retained-message clear confirmation
+    pub sub_input: String,       // buffer for the subscribe prompt
+    pub clear_topic: String,     // topic awaiting retained-message clear confirmation
+    pub plugins_selected: usize, // cursor in the Plugins management screen
     pub error: Option<String>,
 
     // Keyboard text selection in the focused pane (Payload or History). Both
@@ -247,6 +249,7 @@ impl App {
             expanded_history: HashSet::new(),
             sub_input: String::new(),
             clear_topic: String::new(),
+            plugins_selected: 0,
             error: None,
             sel_cursor: (0, 0),
             sel_anchor: None,
