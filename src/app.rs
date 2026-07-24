@@ -403,7 +403,10 @@ mod tests {
 
     #[test]
     fn selection_text_single_line_inclusive() {
-        let lines = vec![DetailLine { text: "hello".into(), kind: DetailKind::Payload }];
+        let lines = vec![DetailLine {
+            text: "hello".into(),
+            kind: DetailKind::Payload,
+        }];
         assert_eq!(selection_text(&lines, (0, 0), (0, 4)), "hello");
         assert_eq!(selection_text(&lines, (0, 1), (0, 3)), "ell");
     }
@@ -421,14 +424,23 @@ mod tests {
         app.screen = Screen::Broker;
         app.focus = Focus::Payload;
 
-        let payload_line =
-            app.payload_lines().iter().position(|l| l.kind == DetailKind::Payload).unwrap();
+        let payload_line = app
+            .payload_lines()
+            .iter()
+            .position(|l| l.kind == DetailKind::Payload)
+            .unwrap();
         for _ in 0..payload_line {
             handle_key(&mut app, KeyEvent::new(KeyCode::Down, KeyModifiers::NONE));
         }
-        assert_eq!(app.sel_cursor.0, payload_line, "cursor should be on the payload line");
+        assert_eq!(
+            app.sel_cursor.0, payload_line,
+            "cursor should be on the payload line"
+        );
 
-        handle_key(&mut app, KeyEvent::new(KeyCode::Char('v'), KeyModifiers::NONE));
+        handle_key(
+            &mut app,
+            KeyEvent::new(KeyCode::Char('v'), KeyModifiers::NONE),
+        );
         for _ in 0..10 {
             handle_key(&mut app, KeyEvent::new(KeyCode::Right, KeyModifiers::NONE));
         }
@@ -446,8 +458,10 @@ mod tests {
         app.tree_selected = 0;
 
         let lines = app.payload_lines();
-        let payload_line =
-            lines.iter().position(|l| l.kind == DetailKind::Payload).unwrap();
+        let payload_line = lines
+            .iter()
+            .position(|l| l.kind == DetailKind::Payload)
+            .unwrap();
         app.sel_cursor = (payload_line, 0);
         app.sel_toggle_anchor();
         for _ in 0..10 {
