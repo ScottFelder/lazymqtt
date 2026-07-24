@@ -2,6 +2,10 @@
 
 A fast, terminal-UI MQTT client written in Rust — inspired by [MQTT Explorer](https://mqtt-explorer.com/), but keyboard-driven and living in your terminal.
 
+![LazyMQTT demo](assets/demo.gif)
+
+> The demo is scripted with [VHS](https://github.com/charmbracelet/vhs); regenerate it with `vhs assets/demo.tape` (see the tape header for prerequisites).
+
 ## Features
 
 - **Saved connections** — create, edit, and delete broker profiles (host, port, client ID, credentials, TLS). Persisted to disk as JSON.
