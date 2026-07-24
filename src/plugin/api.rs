@@ -99,11 +99,46 @@ pub struct InspectMessage {
     pub retained: bool,
 }
 
+/// Semantic token kind for a styled inspector span; the renderer maps it to a
+/// color (kept UI-agnostic here so plugins never name colors directly).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum InspectorStyle {
+    /// Structural characters: braces, brackets, quotes, colons, commas, indent.
+    Punctuation,
+    /// An object key.
+    Key,
+    /// A string value.
+    Str,
+    /// A numeric value.
+    Number,
+    /// A literal: true / false / null.
+    Literal,
+    /// Uncategorized text.
+    Plain,
+}
+
+/// One styled piece of an inspector line. Concatenating a line's `text`s
+/// reproduces the plain rendering, so selection/yank stay intact.
+#[derive(Debug, Clone)]
+pub struct InspectorSpan {
+    pub text: String,
+    pub style: InspectorStyle,
+}
+
+impl InspectorSpan {
+    pub fn new(text: impl Into<String>, style: InspectorStyle) -> Self {
+        Self {
+            text: text.into(),
+            style,
+        }
+    }
+}
+
 /// An alternative rendering of a payload supplied by a plugin (e.g. pretty
-/// JSON). `lines` are plain strings the core turns into Payload-pane rows, so
-/// the raw text view always stays available alongside it.
+/// JSON). Each line is a sequence of styled spans; the core turns them into
+/// Payload-pane rows, and the raw text view always stays available alongside.
 #[derive(Debug, Clone)]
 pub struct InspectorView {
     pub label: String,
-    pub lines: Vec<String>,
+    pub lines: Vec<Vec<InspectorSpan>>,
 }
