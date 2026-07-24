@@ -362,6 +362,7 @@ fn broker_keys(app: &mut App, key: KeyEvent) {
                 app.screen = Screen::ClearRetained;
             }
         }
+        KeyCode::Char('z') => app.toggle_pane_fold(),
         _ => {}
     }
 }
