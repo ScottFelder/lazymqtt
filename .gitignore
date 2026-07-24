@@ -16,3 +16,6 @@
 # macOS
 .DS_Store
 **/.DS_Store
+
+FEATURES.md
+**/FEATURES.md
