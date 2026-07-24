@@ -202,11 +202,20 @@ fn broker_keys(app: &mut App, key: KeyEvent) {
     let len = rows.len();
 
     // Number keys jump straight to a pane, lazygit/lazydocker-style, regardless
-    // of which pane currently has focus.
+    // of which pane currently has focus. Switching panes clears any in-progress
+    // selection, since the cursor indexes the focused pane's own lines.
     match key.code {
-        KeyCode::Char('1') => return app.focus = Focus::Tree,
-        KeyCode::Char('2') => return app.focus = Focus::Payload,
-        KeyCode::Char('3') => return app.focus = Focus::History,
+        KeyCode::Char('1') => {
+            app.focus = Focus::Tree;
+            app.reset_selection();
+            return;
+        }
+        KeyCode::Char('2') => {
+            app.focus = Focus::Payload;
+            app.reset_selection();
+            return;
+        }
+        KeyCode::Char('3') => return app.focus_history(),
         _ => {}
     }
 
@@ -224,30 +233,27 @@ fn broker_keys(app: &mut App, key: KeyEvent) {
         }
     }
 
-    // When the History pane is focused, movement keys pick which past message
-    // (for the selected topic) the Payload pane shows; Enter expands/collapses
-    // the selected entry inline.
+    // When the History pane is focused, movement keys drive the same text
+    // selection cursor as the Payload pane (over the History lines); moving
+    // between messages keeps the Payload pane in sync, and Enter expands or
+    // collapses the entry under the cursor.
     if app.focus == Focus::History {
-        let msgs = app.topic_messages();
         match key.code {
+            KeyCode::Char('h') | KeyCode::Left => return app.sel_move_col(-1),
+            KeyCode::Char('l') | KeyCode::Right => return app.sel_move_col(1),
             KeyCode::Char('j') | KeyCode::Down => {
-                if !msgs.is_empty() {
-                    app.history_selected = (app.history_selected + 1).min(msgs.len() - 1);
-                    app.reset_selection();
-                }
+                app.sel_move_line(1);
+                app.sync_history_selected();
                 return;
             }
             KeyCode::Char('k') | KeyCode::Up => {
-                app.history_selected = app.history_selected.saturating_sub(1);
-                app.reset_selection();
+                app.sel_move_line(-1);
+                app.sync_history_selected();
                 return;
             }
-            KeyCode::Enter => {
-                if let Some(m) = msgs.get(app.history_selected).copied().cloned() {
-                    app.toggle_history_expanded(&m);
-                }
-                return;
-            }
+            KeyCode::Char('v') => return app.sel_toggle_anchor(),
+            KeyCode::Char('y') => return app.sel_yank(),
+            KeyCode::Enter => return app.toggle_history_at_cursor(),
             _ => {}
         }
     }
@@ -266,13 +272,17 @@ fn broker_keys(app: &mut App, key: KeyEvent) {
             app.should_quit = true;
         }
         KeyCode::Char('?') => app.screen = Screen::Help,
-        KeyCode::Tab => {
-            app.focus = match app.focus {
-                Focus::Tree => Focus::Payload,
-                Focus::Payload => Focus::History,
-                Focus::History => Focus::Tree,
-            };
-        }
+        KeyCode::Tab => match app.focus {
+            Focus::Tree => {
+                app.focus = Focus::Payload;
+                app.reset_selection();
+            }
+            Focus::Payload => app.focus_history(),
+            Focus::History => {
+                app.focus = Focus::Tree;
+                app.reset_selection();
+            }
+        },
         KeyCode::Char('c') => {
             app.tree.clear();
             app.history.clear();
