@@ -456,7 +456,8 @@ fn style_for(kind: DetailKind) -> Style {
         DetailKind::Syntax(style) => Style::default().fg(match style {
             // Braces, brackets, quotes, colons, commas, indentation.
             InspectorStyle::Punctuation => Color::White,
-            InspectorStyle::Key => ACCENT,
+            // Keys deliberately avoid the app's cyan ACCENT — a soft blue.
+            InspectorStyle::Key => Color::Rgb(122, 162, 247),
             InspectorStyle::Str => Color::Green,
             InspectorStyle::Number => Color::Yellow,
             InspectorStyle::Literal => Color::Magenta,
