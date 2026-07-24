@@ -21,6 +21,15 @@ pub enum Focus {
     History,
 }
 
+/// Which message sub-pane is collapsed to a title bar. At most one at a time;
+/// the other then fills the remaining space.
+#[derive(PartialEq, Eq, Clone, Copy)]
+pub enum PaneFold {
+    None,
+    Payload,
+    History,
+}
+
 /// Semantic role of a piece of a detail line; the renderer maps it to a color.
 #[derive(PartialEq, Eq, Clone, Copy)]
 pub enum DetailKind {
@@ -168,6 +177,7 @@ pub struct App {
     pub config: Config,
     pub screen: Screen,
     pub focus: Focus,
+    pub collapsed: PaneFold, // which message sub-pane is collapsed, if any
     pub should_quit: bool,
 
     pub conn_selected: usize,
@@ -209,6 +219,7 @@ impl App {
             config: Config::load(),
             screen: Screen::Connections,
             focus: Focus::Tree,
+            collapsed: PaneFold::None,
             should_quit: false,
             conn_selected: 0,
             form: FormBuffer::default(),
@@ -434,6 +445,23 @@ impl App {
         self.focus = Focus::History;
         self.reset_selection();
         self.sel_cursor = (self.history_header_line(self.history_selected), 0);
+    }
+
+    /// Collapse/expand the focused message sub-pane. Collapsing one implicitly
+    /// expands the other (the fold state holds at most one collapsed pane), and
+    /// toggling the already-collapsed pane restores the even split. Does nothing
+    /// when the Topics pane is focused.
+    pub fn toggle_pane_fold(&mut self) {
+        let target = match self.focus {
+            Focus::Payload => PaneFold::Payload,
+            Focus::History => PaneFold::History,
+            Focus::Tree => return,
+        };
+        self.collapsed = if self.collapsed == target {
+            PaneFold::None
+        } else {
+            target
+        };
     }
 
     /// Keep the Payload pane (and `history_selected`) pointed at whichever

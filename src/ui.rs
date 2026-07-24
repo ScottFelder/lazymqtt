@@ -1,4 +1,4 @@
-use crate::app::{App, DetailKind, DetailLine, Focus, PublishBuffer, Screen, Status};
+use crate::app::{App, DetailKind, DetailLine, Focus, PaneFold, PublishBuffer, Screen, Status};
 use ratatui::{
     layout::{Alignment, Constraint, Direction, Layout, Margin, Rect},
     style::{Color, Modifier, Style},
@@ -194,7 +194,7 @@ fn draw_form(f: &mut Frame, app: &App, area: Rect) {
 fn draw_broker(f: &mut Frame, app: &App, area: Rect) {
     let cols = Layout::default()
         .direction(Direction::Horizontal)
-        .constraints([Constraint::Percentage(45), Constraint::Percentage(55)])
+        .constraints([Constraint::Percentage(50), Constraint::Percentage(50)])
         .split(area);
 
     // Left: topic tree
@@ -256,25 +256,70 @@ fn draw_broker(f: &mut Frame, app: &App, area: Rect) {
     f.render_stateful_widget(tree, cols[0], &mut state);
     render_vscrollbar(f, cols[0], rows.len(), state.offset());
 
-    // Right: Payload (selected message) on top, History (all messages for the
-    // selected topic) below.
+    // Right: an outer "Messages" container (peer to Topics) holding the Payload
+    // and History panes as nested sub-panes. Its border highlights whenever a
+    // sub-pane has focus. The container itself carries no [n] jump number.
+    let messages_border = if app.focus == Focus::Tree {
+        DIM
+    } else {
+        ACCENT
+    };
+    let messages = Block::default()
+        .borders(Borders::ALL)
+        .border_style(Style::default().fg(messages_border))
+        .title(Span::styled(
+            " Messages ",
+            Style::default().fg(ACCENT).add_modifier(Modifier::BOLD),
+        ));
+    let inner = messages.inner(cols[1]);
+    f.render_widget(messages, cols[1]);
+
+    // Payload (selected message) on top, History (all messages) below. Both
+    // expanded => an even split; one collapsed => it shrinks to a title bar and
+    // the other fills the rest. A collapsed pane is COLLAPSED_ROWS tall.
+    const COLLAPSED_ROWS: u16 = 3;
+    let (constraints, payload_collapsed, history_collapsed) = match app.collapsed {
+        PaneFold::None => (
+            [Constraint::Percentage(50), Constraint::Percentage(50)],
+            false,
+            false,
+        ),
+        PaneFold::Payload => (
+            [Constraint::Length(COLLAPSED_ROWS), Constraint::Min(1)],
+            true,
+            false,
+        ),
+        PaneFold::History => (
+            [Constraint::Min(1), Constraint::Length(COLLAPSED_ROWS)],
+            false,
+            true,
+        ),
+    };
     let right = Layout::default()
         .direction(Direction::Vertical)
-        .constraints([Constraint::Percentage(55), Constraint::Percentage(45)])
-        .split(cols[1]);
+        .constraints(constraints)
+        .split(inner);
 
-    draw_payload(f, app, right[0]);
-    draw_history(f, app, right[1]);
+    draw_payload(f, app, right[0], payload_collapsed);
+    draw_history(f, app, right[1], history_collapsed);
 }
 
 /// Top-right pane: the payload (and metadata) of whichever message is
 /// currently selected, with keyboard text selection/yank.
-fn draw_payload(f: &mut Frame, app: &App, area: Rect) {
+fn draw_payload(f: &mut Frame, app: &App, area: Rect, collapsed: bool) {
     let payload_border = if app.focus == Focus::Payload {
         ACCENT
     } else {
         DIM
     };
+    let block = Block::default()
+        .borders(Borders::ALL)
+        .border_style(Style::default().fg(payload_border))
+        .title(folded_title("2", "Payload", collapsed));
+    if collapsed {
+        f.render_widget(block, area);
+        return;
+    }
     let lines = app.payload_lines();
 
     // Only the focused pane shows a cursor/selection — the cursor state is
@@ -309,12 +354,7 @@ fn draw_payload(f: &mut Frame, app: &App, area: Rect) {
 
     let line_count = rendered.len();
     let payload = Paragraph::new(rendered)
-        .block(
-            Block::default()
-                .borders(Borders::ALL)
-                .border_style(Style::default().fg(payload_border))
-                .title(pane_title("2", "Payload")),
-        )
+        .block(block)
         .wrap(Wrap { trim: false })
         .scroll((scroll, 0));
     f.render_widget(payload, area);
@@ -325,12 +365,20 @@ fn draw_payload(f: &mut Frame, app: &App, area: Rect) {
 /// first, with the same keyboard text selection/yank as the Payload pane.
 /// Moving the cursor also picks which message the Payload pane shows; Enter
 /// expands/collapses the entry under the cursor.
-fn draw_history(f: &mut Frame, app: &App, area: Rect) {
+fn draw_history(f: &mut Frame, app: &App, area: Rect, collapsed: bool) {
     let history_border = if app.focus == Focus::History {
         ACCENT
     } else {
         DIM
     };
+    let block = Block::default()
+        .borders(Borders::ALL)
+        .border_style(Style::default().fg(history_border))
+        .title(folded_title("3", "History", collapsed));
+    if collapsed {
+        f.render_widget(block, area);
+        return;
+    }
     let lines = app.history_lines();
 
     // Only the focused pane shows a cursor/selection — the cursor state is
@@ -364,16 +412,21 @@ fn draw_history(f: &mut Frame, app: &App, area: Rect) {
 
     let line_count = rendered.len();
     let history = Paragraph::new(rendered)
-        .block(
-            Block::default()
-                .borders(Borders::ALL)
-                .border_style(Style::default().fg(history_border))
-                .title(pane_title("3", "History")),
-        )
+        .block(block)
         .wrap(Wrap { trim: false })
         .scroll((scroll, 0));
     f.render_widget(history, area);
     render_vscrollbar(f, area, line_count, scroll as usize);
+}
+
+/// A pane title with a fold chevron: ▾ when expanded, ▸ when collapsed.
+fn folded_title(number: &str, name: &str, collapsed: bool) -> Line<'static> {
+    let mut title = pane_title(number, name);
+    title.spans.push(Span::styled(
+        if collapsed { "▸ " } else { "▾ " },
+        Style::default().fg(DIM),
+    ));
+    title
 }
 
 /// Color for a segment's semantic kind.
@@ -575,6 +628,7 @@ fn draw_help(f: &mut Frame, area: Rect) {
         Line::from("  ↑/↓/←/→ or hjkl   move cursor   ·   v   start/extend selection"),
         Line::from("  y                 yank to clipboard (whole line if no selection)"),
         Line::from("  Esc               clear selection"),
+        Line::from("  z                 collapse/expand this pane (the other fills the space)"),
         Line::from("  Enter (History)   expand/collapse the entry under the cursor"),
         Line::from(""),
         Line::from("Clipboard:"),
@@ -607,10 +661,10 @@ fn draw_statusbar(f: &mut Frame, app: &App, area: Rect) {
         Screen::Connections => "n:new e:edit d:del Enter:connect ?:help q:quit",
         Screen::ConnectionForm => "Tab:field Enter:save Esc:cancel",
         Screen::Broker if app.focus == Focus::Payload => {
-            "hjkl/arrows:move v:select y:yank 1:topics 3:history p:publish ?:help"
+            "hjkl/arrows:move v:select y:yank z:fold-pane 1:topics 3:history p:publish ?:help"
         }
         Screen::Broker if app.focus == Focus::History => {
-            "hjkl/arrows:move v:select y:yank Enter:expand/collapse 2:payload p:publish ?:help"
+            "hjkl:move v:select y:yank Enter:expand-entry z:fold-pane 2:payload p:publish ?:help"
         }
         Screen::Broker => {
             "j/k:move Enter:expand 2:payload 3:history s:sub u:unsub p:pub r:clr-retain Esc:disconnect"
@@ -633,9 +687,26 @@ fn draw_statusbar(f: &mut Frame, app: &App, area: Rect) {
             None => String::new(),
         }),
     ]);
+
+    // App version, baked in from Cargo.toml at compile time so it tracks the
+    // package version automatically. Pinned to the lower-right of the status bar.
+    let version = format!(" lazymqtt {} ", env!("CARGO_PKG_VERSION"));
+    let bg = Style::default().bg(Color::Rgb(20, 20, 25));
+
+    let cols = Layout::default()
+        .direction(Direction::Horizontal)
+        .constraints([
+            Constraint::Min(1),
+            Constraint::Length(version.chars().count() as u16),
+        ])
+        .split(area);
+
+    f.render_widget(Paragraph::new(line).style(bg), cols[0]);
     f.render_widget(
-        Paragraph::new(line).style(Style::default().bg(Color::Rgb(20, 20, 25))),
-        area,
+        Paragraph::new(Line::from(Span::styled(version, Style::default().fg(DIM))))
+            .style(bg)
+            .alignment(Alignment::Right),
+        cols[1],
     );
 }
 
