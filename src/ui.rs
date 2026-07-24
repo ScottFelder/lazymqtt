@@ -273,16 +273,21 @@ fn draw_payload(f: &mut Frame, app: &App, area: Rect) {
     };
     let lines = app.payload_lines();
 
-    // Ordered selection span, if a visual selection is active.
-    let sel = app.sel_anchor.map(|a| {
-        let b = app.sel_cursor;
-        if a <= b {
-            (a, b)
-        } else {
-            (b, a)
-        }
-    });
+    // Only the focused pane shows a cursor/selection — the cursor state is
+    // shared between panes, so an unfocused pane must render none of it.
     let show_cursor = app.focus == Focus::Payload;
+    let sel = if show_cursor {
+        app.sel_anchor.map(|a| {
+            let b = app.sel_cursor;
+            if a <= b {
+                (a, b)
+            } else {
+                (b, a)
+            }
+        })
+    } else {
+        None
+    };
 
     let rendered: Vec<Line> = lines
         .iter()
@@ -313,85 +318,73 @@ fn draw_payload(f: &mut Frame, app: &App, area: Rect) {
 }
 
 /// Bottom-right pane: every message received for the selected topic, newest
-/// first. Selecting an entry here changes which message the Payload pane shows.
+/// first, with the same keyboard text selection/yank as the Payload pane.
+/// Moving the cursor also picks which message the Payload pane shows; Enter
+/// expands/collapses the entry under the cursor.
 fn draw_history(f: &mut Frame, app: &App, area: Rect) {
     let history_border = if app.focus == Focus::History {
         ACCENT
     } else {
         DIM
     };
-    let msgs = app.topic_messages();
+    let lines = app.history_lines();
 
-    let items: Vec<ListItem> = msgs
-        .iter()
-        .map(|m| {
-            let retain = if m.retained { " R" } else { "" };
-            let expanded = app.is_history_expanded(m);
-            let toggle = if expanded { "▼ " } else { "▶ " };
-            let time_fmt = if expanded {
-                "%m/%d/%Y %H:%M:%S%.3f"
+    // Only the focused pane shows a cursor/selection — the cursor state is
+    // shared between panes, so an unfocused pane must render none of it.
+    let show_cursor = app.focus == Focus::History;
+    let sel = if show_cursor {
+        app.sel_anchor.map(|a| {
+            let b = app.sel_cursor;
+            if a <= b {
+                (a, b)
             } else {
-                "%H:%M:%S%.3f"
-            };
-
-            let mut header = vec![
-                Span::styled(toggle, Style::default().fg(ACCENT)),
-                Span::styled(
-                    m.time.format(time_fmt).to_string(),
-                    Style::default().fg(DIM),
-                ),
-                Span::styled(format!("  q{}{}", m.qos, retain), Style::default().fg(DIM)),
-            ];
-
-            if !expanded {
-                let preview: String = m.payload.chars().take(40).collect();
-                header.push(Span::styled(
-                    format!("  {}", preview),
-                    Style::default().fg(Color::Green),
-                ));
-                return ListItem::new(Line::from(header));
+                (b, a)
             }
-
-            // Expanded: pretty-print like the Payload pane, indented under the header.
-            let mut lines = vec![Line::from(header), Line::from("")];
-            for line in m.payload.lines() {
-                lines.push(Line::from(Span::styled(
-                    format!("    {}", line),
-                    Style::default().fg(Color::Green),
-                )));
-            }
-            lines.push(Line::from(""));
-            ListItem::new(lines)
         })
+    } else {
+        None
+    };
+
+    let rendered: Vec<Line> = lines
+        .iter()
+        .enumerate()
+        .map(|(i, dl)| render_detail_line(i, dl, sel, app.sel_cursor, show_cursor))
         .collect();
 
-    let history = List::new(items)
+    let inner_h = area.height.saturating_sub(2) as usize;
+    let scroll = if show_cursor && inner_h > 0 && app.sel_cursor.0 >= inner_h {
+        (app.sel_cursor.0 - inner_h + 1) as u16
+    } else {
+        0
+    };
+
+    let line_count = rendered.len();
+    let history = Paragraph::new(rendered)
         .block(
             Block::default()
                 .borders(Borders::ALL)
                 .border_style(Style::default().fg(history_border))
                 .title(pane_title("3", "History")),
         )
-        .highlight_style(Style::default().bg(history_border).fg(Color::Black));
+        .wrap(Wrap { trim: false })
+        .scroll((scroll, 0));
+    f.render_widget(history, area);
+    render_vscrollbar(f, area, line_count, scroll as usize);
+}
 
-    let mut state = ListState::default();
-    if !msgs.is_empty() {
-        state.select(Some(app.history_selected.min(msgs.len() - 1)));
-    }
-    f.render_stateful_widget(history, area, &mut state);
-    render_vscrollbar(f, area, msgs.len(), state.offset());
-
-    if msgs.is_empty() {
-        let hint = Paragraph::new("No messages on this exact topic yet.")
-            .style(Style::default().fg(DIM))
-            .alignment(Alignment::Center);
-        let inner = center_rect(area, 80, 1);
-        f.render_widget(hint, inner);
+/// Color for a segment's semantic kind.
+fn style_for(kind: DetailKind) -> Style {
+    match kind {
+        DetailKind::Header => Style::default().fg(ACCENT).add_modifier(Modifier::BOLD),
+        DetailKind::Toggle => Style::default().fg(ACCENT),
+        DetailKind::Payload => Style::default().fg(Color::Green),
+        DetailKind::Meta | DetailKind::Blank => Style::default().fg(DIM),
     }
 }
 
-/// Render one detail line, applying its base style plus a highlight over the
-/// selected columns (or a block cursor when no visual selection is active).
+/// Render one detail line: its decorative lead, then each styled segment with a
+/// selection highlight overlaid across the selected column range (or a block
+/// cursor when no visual selection is active).
 fn render_detail_line(
     i: usize,
     dl: &DetailLine,
@@ -399,25 +392,19 @@ fn render_detail_line(
     cursor: (usize, usize),
     show_cursor: bool,
 ) -> Line<'static> {
-    let base = match dl.kind {
-        DetailKind::Header => Style::default().fg(ACCENT).add_modifier(Modifier::BOLD),
-        DetailKind::Payload => Style::default().fg(Color::Green),
-        DetailKind::Meta | DetailKind::Blank => Style::default().fg(DIM),
-    };
-    let indent = matches!(dl.kind, DetailKind::Payload);
-    let chars: Vec<char> = dl.text.chars().collect();
+    let text_len = dl.char_len();
 
-    // Inclusive [start, end] highlight range on this line, if any.
+    // Inclusive [start, end] highlight range over the line's selectable text.
     let range: Option<(usize, usize)> = if let Some((a, b)) = sel {
-        if i >= a.0 && i <= b.0 && !chars.is_empty() {
+        if i >= a.0 && i <= b.0 && text_len > 0 {
             let start = if i == a.0 { a.1 } else { 0 };
-            let end = if i == b.0 { b.1 } else { chars.len() - 1 };
-            Some((start.min(chars.len() - 1), end.min(chars.len() - 1)))
+            let end = if i == b.0 { b.1 } else { text_len - 1 };
+            Some((start.min(text_len - 1), end.min(text_len - 1)))
         } else {
             None
         }
-    } else if show_cursor && i == cursor.0 && !chars.is_empty() {
-        let c = cursor.1.min(chars.len() - 1);
+    } else if show_cursor && i == cursor.0 && text_len > 0 {
+        let c = cursor.1.min(text_len - 1);
         Some((c, c))
     } else {
         None
@@ -425,31 +412,41 @@ fn render_detail_line(
 
     let hl = Style::default().bg(ACCENT).fg(Color::Black);
     let mut spans = Vec::new();
-    if indent {
-        spans.push(Span::raw("  "));
+    if !dl.lead.is_empty() {
+        spans.push(Span::styled(dl.lead.clone(), style_for(dl.lead_kind)));
     }
-    match range {
-        Some((s, e)) if s <= e => {
-            let pre: String = chars[..s].iter().collect();
-            let mid: String = chars[s..=e].iter().collect();
-            let post: String = chars[e + 1..].iter().collect();
-            if !pre.is_empty() {
-                spans.push(Span::styled(pre, base));
+
+    // Walk segments, splitting each by its intersection with the highlight range.
+    let mut offset = 0usize;
+    for (text, kind) in &dl.segs {
+        let base = style_for(*kind);
+        let chars: Vec<char> = text.chars().collect();
+        let n = chars.len();
+        match range {
+            Some((s, e)) if n > 0 && s.max(offset) <= e.min(offset + n - 1) => {
+                let ls = s.max(offset) - offset;
+                let le = e.min(offset + n - 1) - offset;
+                if ls > 0 {
+                    spans.push(Span::styled(chars[..ls].iter().collect::<String>(), base));
+                }
+                spans.push(Span::styled(chars[ls..=le].iter().collect::<String>(), hl));
+                if le + 1 < n {
+                    spans.push(Span::styled(
+                        chars[le + 1..].iter().collect::<String>(),
+                        base,
+                    ));
+                }
             }
-            spans.push(Span::styled(mid, hl));
-            if !post.is_empty() {
-                spans.push(Span::styled(post, base));
-            }
+            _ => spans.push(Span::styled(text.clone(), base)),
         }
-        _ => {
-            // Show a one-cell cursor when parked on an empty line.
-            if chars.is_empty() && show_cursor && sel.is_none() && i == cursor.0 {
-                spans.push(Span::styled(" ", hl));
-            } else {
-                spans.push(Span::styled(dl.text.clone(), base));
-            }
-        }
+        offset += n;
     }
+
+    // Show a one-cell cursor when parked on an otherwise-empty line.
+    if text_len == 0 && show_cursor && sel.is_none() && i == cursor.0 {
+        spans.push(Span::styled(" ", hl));
+    }
+
     Line::from(spans)
 }
 
@@ -542,14 +539,11 @@ fn draw_help(f: &mut Frame, area: Rect) {
         Line::from("  p            publish        ·   c        clear tree"),
         Line::from("  Esc          disconnect     ·   ?        this help"),
         Line::from(""),
-        Line::from("History pane (Tab or 3 to focus it):"),
-        Line::from("  ↑/↓ or j/k   pick which past message Payload shows"),
-        Line::from("  Enter        expand/collapse the selected entry inline"),
-        Line::from(""),
-        Line::from("Payload pane (Tab or 2 to focus it):"),
+        Line::from("Payload & History panes (Tab or 2/3 to focus):"),
         Line::from("  ↑/↓/←/→ or hjkl   move cursor   ·   v   start/extend selection"),
         Line::from("  y                 yank to clipboard (whole line if no selection)"),
         Line::from("  Esc               clear selection"),
+        Line::from("  Enter (History)   expand/collapse the entry under the cursor"),
         Line::from(""),
         Line::from("Clipboard:"),
         Line::from("  Paste into any input field, incl. the publish payload."),
@@ -584,7 +578,7 @@ fn draw_statusbar(f: &mut Frame, app: &App, area: Rect) {
             "hjkl/arrows:move v:select y:yank 1:topics 3:history p:publish ?:help"
         }
         Screen::Broker if app.focus == Focus::History => {
-            "j/k:move Enter:expand/collapse 1:topics 2:payload p:publish ?:help"
+            "hjkl/arrows:move v:select y:yank Enter:expand/collapse 2:payload p:publish ?:help"
         }
         Screen::Broker => {
             "j/k:move Enter:expand/collapse 2:payload 3:history s:sub u:unsub p:publish Esc:disconnect"
