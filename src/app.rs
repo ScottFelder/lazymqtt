@@ -1,7 +1,8 @@
 use crate::config::{Config, Connection};
 use crate::mqtt::{Message, MqttCommand, MqttHandle};
+use crate::plugin::{Annotation, PluginAction, PluginEvent, PluginHost, Severity};
 use crate::tree::TopicTree;
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 
 #[derive(PartialEq, Eq, Clone, Copy)]
 pub enum Screen {
@@ -38,6 +39,8 @@ pub enum DetailKind {
     Payload,
     Toggle,
     Blank,
+    /// A plugin annotation, colored by its severity.
+    Annotation(Severity),
 }
 
 /// One logical line of a selectable pane (Payload or History).
@@ -193,14 +196,20 @@ pub struct App {
     pub tree_selected: usize,
     pub history: Vec<Message>, // recent messages, newest last
 
+    // Plugin host + the data plugins produce. `annotations` maps a message id to
+    // the notes plugins attached to it; `next_message_id` hands out the stable
+    // monotonic ids that key both annotations and history state.
+    pub plugins: PluginHost,
+    pub annotations: HashMap<u64, Vec<Annotation>>,
+    next_message_id: u64,
+
     // Which message (within the selected topic's history, newest-first) the
     // Payload pane is showing. 0 is always the latest message.
     pub history_selected: usize,
 
-    // Messages currently expanded inline in the History pane, keyed by each
-    // message's millisecond timestamp (good enough uniqueness for a single
-    // topic's stream; a same-millisecond collision just toggles together).
-    pub expanded_history: HashSet<i64>,
+    // Messages currently expanded inline in the History pane, keyed by their
+    // stable message id (collision-free, unlike the old millisecond timestamp).
+    pub expanded_history: HashSet<u64>,
 
     pub sub_input: String,   // buffer for the subscribe prompt
     pub clear_topic: String, // topic awaiting retained-message clear confirmation
@@ -231,6 +240,9 @@ impl App {
             expanded: HashSet::new(),
             tree_selected: 0,
             history: Vec::new(),
+            plugins: PluginHost::with_builtins(),
+            annotations: HashMap::new(),
+            next_message_id: 0,
             history_selected: 0,
             expanded_history: HashSet::new(),
             sub_input: String::new(),
@@ -251,12 +263,76 @@ impl App {
         }
     }
 
-    pub fn push_message(&mut self, msg: Message) {
+    pub fn push_message(&mut self, mut msg: Message) {
+        self.next_message_id += 1;
+        msg.id = self.next_message_id;
+
+        // Build the plugin event from owned data so dispatch never borrows self.
+        let event = PluginEvent::MessageReceived {
+            id: msg.id,
+            topic: msg.topic.clone(),
+            payload: msg.payload.clone(),
+            qos: msg.qos,
+            retained: msg.retained,
+        };
+
         self.tree.insert(msg.clone());
         self.history.push(msg);
         if self.history.len() > 5000 {
             self.history.drain(0..1000);
+            // Drop annotations for messages that just fell out of history.
+            if let Some(oldest) = self.history.first().map(|m| m.id) {
+                self.annotations.retain(|&id, _| id >= oldest);
+            }
         }
+
+        let actions = self.plugins.dispatch(&event);
+        self.apply_plugin_actions(actions);
+    }
+
+    /// Dispatch a plugin event and apply whatever actions come back. Used for
+    /// the lifecycle/tick/shutdown hooks driven from the main loop.
+    pub fn dispatch_plugin(&mut self, event: PluginEvent) {
+        let actions = self.plugins.dispatch(&event);
+        self.apply_plugin_actions(actions);
+    }
+
+    fn apply_plugin_actions(&mut self, actions: Vec<PluginAction>) {
+        for action in actions {
+            match action {
+                PluginAction::Annotate { id, annotation } => {
+                    self.annotations.entry(id).or_default().push(annotation);
+                }
+                PluginAction::Publish {
+                    topic,
+                    payload,
+                    qos,
+                    retain,
+                } => {
+                    self.send(MqttCommand::Publish {
+                        topic,
+                        payload,
+                        qos,
+                        retain,
+                    });
+                }
+                PluginAction::Subscribe { topic, qos } => {
+                    self.send(MqttCommand::Subscribe { topic, qos });
+                }
+                PluginAction::Unsubscribe { topic } => {
+                    self.send(MqttCommand::Unsubscribe { topic });
+                }
+                PluginAction::Status(text) => self.error = Some(text),
+            }
+        }
+    }
+
+    /// Annotations attached to a given message id, in the order added.
+    pub fn annotations_for(&self, id: u64) -> &[Annotation] {
+        self.annotations
+            .get(&id)
+            .map(|v| v.as_slice())
+            .unwrap_or(&[])
     }
 
     pub fn disconnect(&mut self) {
@@ -268,6 +344,7 @@ impl App {
         self.history.clear();
         self.expanded.clear();
         self.tree_selected = 0;
+        self.annotations.clear();
         self.reset_message_view();
     }
 
@@ -286,8 +363,9 @@ impl App {
     }
 
     /// Key used to track a message's inline-expanded state in the History pane.
-    pub fn history_key(msg: &Message) -> i64 {
-        msg.time.timestamp_millis()
+    /// The stable message id (not the timestamp) so it can't collide.
+    pub fn history_key(msg: &Message) -> u64 {
+        msg.id
     }
 
     /// Whether the given message is currently expanded in the History pane.
@@ -352,6 +430,12 @@ impl App {
                     ),
                     DetailKind::Meta,
                 ));
+                for a in self.annotations_for(m.id) {
+                    out.push(DetailLine::plain(
+                        format!("{} {}: {}", severity_glyph(a.severity), a.plugin, a.text),
+                        DetailKind::Annotation(a.severity),
+                    ));
+                }
                 out.push(DetailLine::blank());
                 for line in m.payload.lines() {
                     out.push(DetailLine::indented(2, line, DetailKind::Payload));
@@ -381,6 +465,7 @@ impl App {
             let retain = if m.retained { " R" } else { "" };
             let expanded = self.is_history_expanded(m);
             let arrow = if expanded { "▼ " } else { "▶ " };
+            let marker = annotation_marker(self.annotations_for(m.id));
 
             if expanded {
                 let meta = format!(
@@ -389,10 +474,12 @@ impl App {
                     m.qos,
                     retain
                 );
+                let mut segs = vec![(meta, DetailKind::Meta)];
+                segs.extend(marker);
                 out.push(DetailLine {
                     lead: arrow.into(),
                     lead_kind: DetailKind::Toggle,
-                    segs: vec![(meta, DetailKind::Meta)],
+                    segs,
                     msg: Some(i),
                 });
                 for line in m.payload.lines() {
@@ -409,13 +496,15 @@ impl App {
                     .chars()
                     .take(40)
                     .collect();
+                let mut segs = vec![
+                    (meta, DetailKind::Meta),
+                    (format!("  {}", preview), DetailKind::Payload),
+                ];
+                segs.extend(marker);
                 out.push(DetailLine {
                     lead: arrow.into(),
                     lead_kind: DetailKind::Toggle,
-                    segs: vec![
-                        (meta, DetailKind::Meta),
-                        (format!("  {}", preview), DetailKind::Payload),
-                    ],
+                    segs,
                     msg: Some(i),
                 });
             }
@@ -583,6 +672,7 @@ mod tests {
 
     fn msg(topic: &str, payload: &str) -> Message {
         Message {
+            id: 0, // push_message assigns the real id
             topic: topic.into(),
             payload: payload.into(),
             qos: 0,
@@ -692,6 +782,89 @@ mod tests {
         let (s, e) = if a <= b { (a, b) } else { (b, a) };
         assert_eq!(selection_text(&app.history_lines(), s, e), "world");
     }
+
+    #[test]
+    fn push_message_assigns_ids_and_plugin_annotates() {
+        let mut app = App::new();
+
+        app.push_message(msg("t", r#"{"a":1}"#));
+        app.push_message(msg("t", "plain text"));
+
+        // Stable, monotonic ids assigned in order.
+        assert_eq!(app.history[0].id, 1);
+        assert_eq!(app.history[1].id, 2);
+
+        // The built-in json-marker annotated each by parseability.
+        let first = app.annotations_for(1);
+        assert_eq!(first.len(), 1);
+        assert_eq!(first[0].severity, Severity::Ok);
+
+        let second = app.annotations_for(2);
+        assert_eq!(second.len(), 1);
+        assert_eq!(second[0].severity, Severity::Info);
+    }
+
+    #[test]
+    fn annotations_pruned_when_history_trims() {
+        let mut app = App::new();
+        for _ in 0..5001 {
+            app.push_message(msg("t", "hello")); // each gets an Info annotation
+        }
+        // The trim dropped the oldest 1000 (ids 1..=1000); their annotations go too.
+        assert!(app.annotations_for(1).is_empty());
+        assert_eq!(app.history.first().unwrap().id, 1001);
+        assert!(!app.annotations_for(1001).is_empty());
+    }
+
+    #[test]
+    fn plugin_host_dispatch_collects_actions() {
+        use crate::plugin::{PluginAction, PluginEvent, PluginHost};
+
+        let mut host = PluginHost::with_builtins();
+        let actions = host.dispatch(&PluginEvent::MessageReceived {
+            id: 7,
+            topic: "t".into(),
+            payload: r#"{"ok":true}"#.into(),
+            qos: 0,
+            retained: false,
+        });
+        assert!(actions
+            .iter()
+            .any(|a| matches!(a, PluginAction::Annotate { id: 7, .. })));
+    }
+}
+
+/// Glyph shown for an annotation severity (color is applied by the renderer).
+pub fn severity_glyph(severity: Severity) -> &'static str {
+    match severity {
+        Severity::Ok => "✓",
+        Severity::Info => "•",
+        Severity::Warn => "⚠",
+        Severity::Error => "✗",
+    }
+}
+
+fn severity_rank(severity: Severity) -> u8 {
+    match severity {
+        Severity::Ok => 0,
+        Severity::Info => 1,
+        Severity::Warn => 2,
+        Severity::Error => 3,
+    }
+}
+
+/// A single header marker segment summarizing a message's annotations, taking
+/// the most severe. `None` when there are no annotations. Returned as a
+/// one-element iterator so callers can `segs.extend(...)` it.
+fn annotation_marker(annotations: &[Annotation]) -> Option<(String, DetailKind)> {
+    let severity = annotations
+        .iter()
+        .map(|a| a.severity)
+        .max_by_key(|s| severity_rank(*s))?;
+    Some((
+        format!("  {}", severity_glyph(severity)),
+        DetailKind::Annotation(severity),
+    ))
 }
 
 /// Extract the inclusive text span between ordered points `a <= b`.
