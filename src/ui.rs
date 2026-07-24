@@ -1,4 +1,5 @@
 use crate::app::{App, DetailKind, DetailLine, Focus, PaneFold, PublishBuffer, Screen, Status};
+use crate::plugin::Severity;
 use ratatui::{
     layout::{Alignment, Constraint, Direction, Layout, Margin, Rect},
     style::{Color, Modifier, Style},
@@ -35,7 +36,7 @@ pub fn draw(f: &mut Frame, app: &App) {
             draw_broker(f, app, chunks[0]);
             draw_clear_retained(f, &app.clear_topic, chunks[0]);
         }
-        Screen::Help => draw_help(f, chunks[0]),
+        Screen::Help => draw_help(f, app, chunks[0]),
     }
 
     draw_statusbar(f, app, chunks[1]);
@@ -436,6 +437,12 @@ fn style_for(kind: DetailKind) -> Style {
         DetailKind::Toggle => Style::default().fg(ACCENT),
         DetailKind::Payload => Style::default().fg(Color::Green),
         DetailKind::Meta | DetailKind::Blank => Style::default().fg(DIM),
+        DetailKind::Annotation(severity) => Style::default().fg(match severity {
+            Severity::Ok => Color::Green,
+            Severity::Info => ACCENT,
+            Severity::Warn => Color::Yellow,
+            Severity::Error => Color::Red,
+        }),
     }
 }
 
@@ -597,8 +604,8 @@ fn draw_clear_retained(f: &mut Frame, topic: &str, area: Rect) {
     f.render_widget(p, popup);
 }
 
-fn draw_help(f: &mut Frame, area: Rect) {
-    let text = vec![
+fn draw_help(f: &mut Frame, app: &App, area: Rect) {
+    let mut text = vec![
         Line::from(Span::styled(
             "LazyMQTT — Keybindings",
             Style::default().fg(ACCENT).add_modifier(Modifier::BOLD),
@@ -634,11 +641,28 @@ fn draw_help(f: &mut Frame, area: Rect) {
         Line::from("Clipboard:"),
         Line::from("  Paste into any input field, incl. the publish payload."),
         Line::from(""),
-        Line::from(Span::styled(
-            "Press any key to return.",
-            Style::default().fg(DIM),
-        )),
     ];
+
+    text.push(Line::from("Plugins:"));
+    for meta in app.plugins.metadata() {
+        text.push(Line::from(vec![
+            Span::styled(
+                format!("  {} ", meta.name),
+                Style::default().fg(Color::White),
+            ),
+            Span::styled(format!("v{}", meta.version), Style::default().fg(DIM)),
+            Span::styled(
+                format!("  — {}", meta.description),
+                Style::default().fg(DIM),
+            ),
+        ]));
+    }
+    text.push(Line::from(""));
+    text.push(Line::from(Span::styled(
+        "Press any key to return.",
+        Style::default().fg(DIM),
+    )));
+
     let p = Paragraph::new(text).block(title_block("Help"));
     f.render_widget(p, area);
 }

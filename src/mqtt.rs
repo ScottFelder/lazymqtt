@@ -10,6 +10,10 @@ use uuid::Uuid;
 
 #[derive(Debug, Clone)]
 pub struct Message {
+    /// Stable, monotonic identity assigned by `App::push_message`. The MQTT
+    /// task constructs messages with `0`; the UI side stamps the real id so
+    /// plugin annotations and history state key off something collision-free.
+    pub id: u64,
     pub topic: String,
     pub payload: String,
     pub qos: u8,
@@ -146,6 +150,7 @@ pub fn connect(conn: &Connection) -> Result<MqttHandle> {
                 }
                 Ok(Event::Incoming(Incoming::Publish(p))) => {
                     let msg = Message {
+                        id: 0, // App::push_message assigns the real id
                         topic: p.topic,
                         payload: String::from_utf8_lossy(&p.payload).to_string(),
                         qos: match p.qos {

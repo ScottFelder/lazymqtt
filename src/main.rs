@@ -3,6 +3,7 @@ mod clipboard;
 mod config;
 mod events;
 mod mqtt;
+mod plugin;
 mod tree;
 mod ui;
 
@@ -14,9 +15,10 @@ use crossterm::{
     terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
 };
 use mqtt::MqttEvent;
+use plugin::PluginEvent;
 use ratatui::{backend::CrosstermBackend, Terminal};
 use std::io;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -50,6 +52,10 @@ async fn run<B: ratatui::backend::Backend>(
     terminal: &mut Terminal<B>,
     app: &mut App,
 ) -> Result<()> {
+    // Plugins get a Tick roughly once a second (for silence detection, rolling
+    // stats, etc.) without coupling to the input-poll cadence.
+    let mut last_tick = Instant::now();
+
     loop {
         // Drain any pending MQTT events without blocking the render loop.
         // Collect first so the handle borrow ends before we mutate `app`.
@@ -61,11 +67,23 @@ async fn run<B: ratatui::backend::Backend>(
         }
         for ev in pending {
             match ev {
-                MqttEvent::Connected => app.status = Status::Connected,
-                MqttEvent::Disconnected(e) => app.status = Status::Disconnected(e),
+                MqttEvent::Connected => {
+                    app.status = Status::Connected;
+                    app.dispatch_plugin(PluginEvent::Connected);
+                }
+                MqttEvent::Disconnected(e) => {
+                    app.status = Status::Disconnected(e.clone());
+                    app.dispatch_plugin(PluginEvent::Disconnected(e));
+                }
                 MqttEvent::Error(e) => app.error = Some(e),
+                // push_message dispatches MessageReceived itself.
                 MqttEvent::Message(m) => app.push_message(m),
             }
+        }
+
+        if last_tick.elapsed() >= Duration::from_secs(1) {
+            app.dispatch_plugin(PluginEvent::Tick);
+            last_tick = Instant::now();
         }
 
         terminal.draw(|f| ui::draw(f, app))?;
@@ -82,6 +100,7 @@ async fn run<B: ratatui::backend::Backend>(
         }
 
         if app.should_quit {
+            app.dispatch_plugin(PluginEvent::Shutdown);
             app.send(mqtt::MqttCommand::Disconnect);
             break;
         }
