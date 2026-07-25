@@ -11,23 +11,14 @@
 //! doesn't capture its own echoes.
 
 use crate::plugin::api::{PluginAction, PluginCommand, PluginContext, PluginEvent, PluginMetadata};
-use crate::plugin::{recordings, Plugin};
-use serde::{Deserialize, Serialize};
+use crate::plugin::recordings::{self, RecordedMessage};
+use crate::plugin::Plugin;
 use std::fs::{self, File};
 use std::io::{BufWriter, Write};
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use std::time::Instant;
 
 const NAME: &str = "topic-recorder";
-
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-struct RecordedMessage {
-    offset_ms: u64,
-    topic: String,
-    payload: String,
-    qos: u8,
-    retain: bool,
-}
 
 struct Replay {
     msgs: Vec<RecordedMessage>,
@@ -282,7 +273,7 @@ impl Recorder {
         let Some(path) = path else {
             return "no recording for this connection".to_string();
         };
-        let msgs = load_recording(&path);
+        let msgs = recordings::read(&path);
         if msgs.is_empty() {
             return "recording is empty".to_string();
         }
@@ -371,16 +362,6 @@ fn drain_due(msgs: &[RecordedMessage], next: usize, elapsed_ms: f64) -> usize {
         i += 1;
     }
     i
-}
-
-fn load_recording(path: &Path) -> Vec<RecordedMessage> {
-    fs::read_to_string(path)
-        .map(|s| {
-            s.lines()
-                .filter_map(|l| serde_json::from_str(l).ok())
-                .collect()
-        })
-        .unwrap_or_default()
 }
 
 #[cfg(test)]

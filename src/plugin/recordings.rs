@@ -7,9 +7,22 @@
 //! recordings picker use this module — mirroring how `alerts_rules` is shared by
 //! the alerts plugin and its in-app editor.
 
+use serde::{Deserialize, Serialize};
 use std::fs;
+use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::time::SystemTime;
+
+/// One recorded message: a line in a recording's JSONL file. `offset_ms` is the
+/// time since the recording started; replay uses it to preserve timing.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct RecordedMessage {
+    pub offset_ms: u64,
+    pub topic: String,
+    pub payload: String,
+    pub qos: u8,
+    pub retain: bool,
+}
 
 /// One stored recording for a connection.
 #[derive(Debug, Clone)]
@@ -94,6 +107,67 @@ pub fn delete(path: &Path) -> std::io::Result<()> {
     fs::remove_file(path)
 }
 
+/// Parse a recording file into its messages, skipping unparseable lines.
+pub fn read(path: &Path) -> Vec<RecordedMessage> {
+    fs::read_to_string(path)
+        .map(|s| {
+            s.lines()
+                .filter(|l| !l.trim().is_empty())
+                .filter_map(|l| serde_json::from_str(l).ok())
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
+/// Render messages as one canonical compact-JSON line each (the on-disk format,
+/// and what the in-app editor shows).
+pub fn to_lines(msgs: &[RecordedMessage]) -> Vec<String> {
+    msgs.iter()
+        .filter_map(|m| serde_json::to_string(m).ok())
+        .collect()
+}
+
+/// Parse edited text (one message per line) back into messages, validating each
+/// non-empty line. On failure returns the 0-based line index and the error, so
+/// the editor can point at the offending line.
+pub fn parse_lines(lines: &[String]) -> Result<Vec<RecordedMessage>, (usize, String)> {
+    let mut out = Vec::new();
+    for (i, line) in lines.iter().enumerate() {
+        if line.trim().is_empty() {
+            continue;
+        }
+        match serde_json::from_str::<RecordedMessage>(line) {
+            Ok(m) => out.push(m),
+            Err(e) => return Err((i, e.to_string())),
+        }
+    }
+    Ok(out)
+}
+
+/// Write messages to `conn`'s recording named `label` (one JSON line each),
+/// creating the recordings dir if needed. The label is sanitized; an empty
+/// result is rejected.
+pub fn write_label(
+    config_dir: &Path,
+    conn: &str,
+    label: &str,
+    msgs: &[RecordedMessage],
+) -> std::io::Result<()> {
+    let clean = sanitize(label);
+    if clean.is_empty() {
+        return Err(std::io::Error::new(
+            std::io::ErrorKind::InvalidInput,
+            "empty recording name",
+        ));
+    }
+    fs::create_dir_all(dir(config_dir))?;
+    let mut file = fs::File::create(path_for(config_dir, conn, &clean))?;
+    for line in to_lines(msgs) {
+        writeln!(file, "{line}")?;
+    }
+    Ok(())
+}
+
 fn count_messages(path: &Path) -> usize {
     fs::read_to_string(path)
         .map(|s| s.lines().filter(|l| !l.trim().is_empty()).count())
@@ -134,5 +208,34 @@ mod tests {
     fn path_for_uses_connection_prefix() {
         let p = path_for(Path::new("/cfg"), "conn1", "my-take");
         assert!(p.ends_with("recordings/conn1-my-take.jsonl"));
+    }
+
+    fn m(offset_ms: u64, payload: &str) -> RecordedMessage {
+        RecordedMessage {
+            offset_ms,
+            topic: "t".into(),
+            payload: payload.into(),
+            qos: 0,
+            retain: false,
+        }
+    }
+
+    #[test]
+    fn to_lines_and_parse_lines_round_trip() {
+        let msgs = vec![m(0, "a"), m(500, "b")];
+        let lines = to_lines(&msgs);
+        assert_eq!(lines.len(), 2);
+        assert_eq!(parse_lines(&lines).unwrap(), msgs);
+    }
+
+    #[test]
+    fn parse_lines_skips_blanks_and_reports_bad_line() {
+        let good = to_lines(&[m(0, "a")])[0].clone();
+        // Blank lines are ignored; a malformed line is reported by index.
+        let lines = vec![good.clone(), "   ".to_string(), "not json".to_string()];
+        match parse_lines(&lines) {
+            Err((idx, _)) => assert_eq!(idx, 2),
+            Ok(_) => panic!("expected a parse error"),
+        }
     }
 }

@@ -42,6 +42,7 @@ pub fn draw(f: &mut Frame, app: &App) {
         Screen::AlertRules => draw_alert_rules(f, app, chunks[0]),
         Screen::AlertRuleForm => draw_alert_rule_form(f, app, chunks[0]),
         Screen::Recordings => draw_recordings(f, app, chunks[0]),
+        Screen::RecordingEdit => draw_recording_edit(f, app, chunks[0]),
         Screen::CommandMenu => {
             draw_broker(f, app, chunks[0]);
             draw_command_menu(f, app, chunks[0]);
@@ -734,6 +735,108 @@ fn draw_recordings(f: &mut Frame, app: &App, area: Rect) {
     }
 }
 
+fn draw_recording_edit(f: &mut Frame, app: &App, area: Rect) {
+    let popup = center_rect(area, 88, 84);
+    f.render_widget(Clear, popup);
+
+    let title = format!(
+        "Edit Recording — {}  (one JSON message per line)",
+        app.rec_edit_label
+    );
+    f.render_widget(title_block(&title), popup);
+
+    // Inner area, split into the text body, a footer hint, and an error line.
+    let inner = Rect {
+        x: popup.x + 1,
+        y: popup.y + 1,
+        width: popup.width.saturating_sub(2),
+        height: popup.height.saturating_sub(2),
+    };
+    let rows = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints([
+            Constraint::Min(1),
+            Constraint::Length(1),
+            Constraint::Length(1),
+        ])
+        .split(inner);
+    let (body, footer, errline) = (rows[0], rows[1], rows[2]);
+
+    // Scroll so the cursor stays visible (both axes derived from the cursor).
+    let text_h = body.height as usize;
+    let text_w = body.width.max(1) as usize;
+    let row_off = app.rec_edit_row.saturating_sub(text_h.saturating_sub(1));
+    let col_off = app.rec_edit_col.saturating_sub(text_w.saturating_sub(1));
+
+    let mut lines: Vec<Line> = Vec::new();
+    for r in row_off..(row_off + text_h).min(app.rec_edit_lines.len()) {
+        let chars: Vec<char> = app.rec_edit_lines[r].chars().collect();
+        if r == app.rec_edit_row {
+            // Draw the line with a block cursor at the current column.
+            let cur = app.rec_edit_col;
+            let mut spans = Vec::new();
+            let before: String = chars[col_off.min(chars.len())..cur.min(chars.len())]
+                .iter()
+                .collect();
+            spans.push(Span::raw(before));
+            let cursor_ch = chars.get(cur).copied().unwrap_or(' ');
+            spans.push(Span::styled(
+                cursor_ch.to_string(),
+                Style::default().fg(Color::Black).bg(ACCENT),
+            ));
+            if cur < chars.len() {
+                let after: String = chars[(cur + 1)..].iter().take(text_w).collect();
+                spans.push(Span::raw(after));
+            }
+            lines.push(Line::from(spans));
+        } else {
+            let visible: String = chars.iter().skip(col_off).take(text_w).collect();
+            lines.push(Line::from(visible));
+        }
+    }
+    f.render_widget(Paragraph::new(lines), body);
+
+    let hint = "arrows: move · Enter: split line · ^S: save · ^N: save as · Esc: cancel";
+    f.render_widget(
+        Paragraph::new(Span::styled(hint, Style::default().fg(DIM))),
+        footer,
+    );
+    if let Some(err) = &app.rec_edit_error {
+        f.render_widget(
+            Paragraph::new(Span::styled(
+                format!("⚠ {err}"),
+                Style::default().fg(Color::Red),
+            )),
+            errline,
+        );
+    }
+
+    // "Save as" prompt overlays the editor.
+    if let Some(buf) = &app.rec_edit_saveas {
+        let prompt = center_rect(area, 60, 20);
+        f.render_widget(Clear, prompt);
+        let lines = vec![
+            Line::from(vec![
+                Span::styled(
+                    "Save as: ",
+                    Style::default().fg(ACCENT).add_modifier(Modifier::BOLD),
+                ),
+                Span::raw(buf.clone()),
+                Span::styled("_", Style::default().fg(ACCENT)),
+            ]),
+            Line::from(""),
+            Line::from(Span::styled(
+                "a new recording for this connection · Enter: save · Esc: back",
+                Style::default().fg(DIM),
+            )),
+        ];
+        f.render_widget(
+            Paragraph::new(lines).block(title_block("Save Recording As")),
+            prompt,
+        );
+    }
+}
+
 fn draw_alert_rule_form(f: &mut Frame, app: &App, area: Rect) {
     let form = &app.alert_form;
     let title = if form.editing_index.is_some() {
@@ -914,7 +1017,7 @@ fn draw_help(f: &mut Frame, app: &App, area: Rect) {
         Line::from("  p            publish        ·   c        clear tree"),
         Line::from("  x            clear selected topic (from view) ·  r  clear retained msg"),
         Line::from("  A            edit alert rules (per connection) · P  plugins"),
-        Line::from("  R            recordings — replay, rename, delete"),
+        Line::from("  R            recordings — replay, edit, rename, delete"),
         Line::from("  Esc          disconnect     ·   ?        this help"),
         Line::from(""),
         Line::from("Payload & History panes (Tab or 2/3 to focus):"),
@@ -987,7 +1090,11 @@ fn draw_statusbar(f: &mut Frame, app: &App, area: Rect) {
         Screen::Recordings if app.recording_rename.is_some() => {
             "type new name  Enter:save  Esc:cancel"
         }
-        Screen::Recordings => "j/k:move Enter:replay r:rename d:delete Esc:back",
+        Screen::Recordings => "j/k:move Enter:replay e:edit r:rename d:delete Esc:back",
+        Screen::RecordingEdit if app.rec_edit_saveas.is_some() => {
+            "type a name  Enter:save  Esc:back"
+        }
+        Screen::RecordingEdit => "edit text · ^S:save · ^N:save as · Esc:cancel",
         Screen::AlertRuleForm => "Tab:field space:change Enter:save Esc:cancel",
         Screen::Help => "any key: back",
     };

@@ -19,6 +19,7 @@ pub enum Screen {
     AlertRules,
     AlertRuleForm,
     Recordings,
+    RecordingEdit,
     CommandMenu,
     Help,
 }
@@ -400,6 +401,18 @@ pub struct App {
     pub recordings_conn: String,
     pub recordings_conn_name: String,
     pub recording_rename: Option<String>,
+
+    // Recording editor (multi-line text edit of one recording's JSONL, opened
+    // from the picker with `e`). `rec_edit_lines` is the editable content — one
+    // message per line — and `rec_edit_row`/`rec_edit_col` the char-addressed
+    // cursor. `rec_edit_label` is the recording being edited (the Save target).
+    // `rec_edit_saveas`, when Some, holds the "save as" filename buffer.
+    pub rec_edit_lines: Vec<String>,
+    pub rec_edit_row: usize,
+    pub rec_edit_col: usize,
+    pub rec_edit_label: String,
+    pub rec_edit_error: Option<String>,
+    pub rec_edit_saveas: Option<String>,
     // Which Payload-pane view is active: 0 = raw text, 1.. = plugin inspector
     // views (in plugin order). Clamped when fewer views are available.
     pub payload_view: usize,
@@ -450,6 +463,12 @@ impl App {
             recordings_conn: String::new(),
             recordings_conn_name: String::new(),
             recording_rename: None,
+            rec_edit_lines: Vec::new(),
+            rec_edit_row: 0,
+            rec_edit_col: 0,
+            rec_edit_label: String::new(),
+            rec_edit_error: None,
+            rec_edit_saveas: None,
             payload_view: 0,
             error: None,
             sel_cursor: (0, 0),
@@ -813,6 +832,163 @@ impl App {
             Err(e) => self.error = Some(format!("delete failed: {e}")),
         }
         self.reload_recordings();
+    }
+
+    // ---- Recording editor -------------------------------------------------
+
+    /// Open the multi-line editor on the selected recording's contents.
+    pub fn open_recording_edit(&mut self) {
+        let Some(label) = self.selected_recording().map(|r| r.label.clone()) else {
+            return;
+        };
+        let mut lines = crate::plugin::read_recording(&self.recordings_conn, &label);
+        if lines.is_empty() {
+            lines.push(String::new()); // always have a line to edit
+        }
+        self.rec_edit_lines = lines;
+        self.rec_edit_row = 0;
+        self.rec_edit_col = 0;
+        self.rec_edit_label = label;
+        self.rec_edit_error = None;
+        self.rec_edit_saveas = None;
+        self.screen = Screen::RecordingEdit;
+    }
+
+    /// Char length of an editor line (0 for an out-of-range row).
+    fn rec_line_len(&self, row: usize) -> usize {
+        self.rec_edit_lines
+            .get(row)
+            .map(|l| l.chars().count())
+            .unwrap_or(0)
+    }
+
+    /// Insert a character at the cursor.
+    pub fn rec_edit_insert(&mut self, c: char) {
+        let (row, col) = (self.rec_edit_row, self.rec_edit_col);
+        if let Some(line) = self.rec_edit_lines.get_mut(row) {
+            line.insert(char_byte_idx(line, col), c);
+            self.rec_edit_col += 1;
+            self.rec_edit_error = None;
+        }
+    }
+
+    /// Delete the character before the cursor, joining lines at column 0.
+    pub fn rec_edit_backspace(&mut self) {
+        if self.rec_edit_col > 0 {
+            let (row, col) = (self.rec_edit_row, self.rec_edit_col);
+            if let Some(line) = self.rec_edit_lines.get_mut(row) {
+                let start = char_byte_idx(line, col - 1);
+                let end = char_byte_idx(line, col);
+                line.replace_range(start..end, "");
+                self.rec_edit_col -= 1;
+            }
+        } else if self.rec_edit_row > 0 {
+            let cur = self.rec_edit_lines.remove(self.rec_edit_row);
+            self.rec_edit_row -= 1;
+            self.rec_edit_col = self.rec_line_len(self.rec_edit_row);
+            self.rec_edit_lines[self.rec_edit_row].push_str(&cur);
+        }
+        self.rec_edit_error = None;
+    }
+
+    /// Split the current line at the cursor into two lines.
+    pub fn rec_edit_newline(&mut self) {
+        let (row, col) = (self.rec_edit_row, self.rec_edit_col);
+        let line = self.rec_edit_lines.get(row).cloned().unwrap_or_default();
+        let at = char_byte_idx(&line, col);
+        let (left, right) = line.split_at(at);
+        self.rec_edit_lines[row] = left.to_string();
+        self.rec_edit_lines.insert(row + 1, right.to_string());
+        self.rec_edit_row += 1;
+        self.rec_edit_col = 0;
+        self.rec_edit_error = None;
+    }
+
+    /// Move the cursor horizontally (wrapping across line ends).
+    pub fn rec_edit_move_h(&mut self, forward: bool) {
+        if forward {
+            if self.rec_edit_col < self.rec_line_len(self.rec_edit_row) {
+                self.rec_edit_col += 1;
+            } else if self.rec_edit_row + 1 < self.rec_edit_lines.len() {
+                self.rec_edit_row += 1;
+                self.rec_edit_col = 0;
+            }
+        } else if self.rec_edit_col > 0 {
+            self.rec_edit_col -= 1;
+        } else if self.rec_edit_row > 0 {
+            self.rec_edit_row -= 1;
+            self.rec_edit_col = self.rec_line_len(self.rec_edit_row);
+        }
+    }
+
+    /// Move the cursor vertically, clamping the column to the new line.
+    pub fn rec_edit_move_v(&mut self, down: bool) {
+        if down {
+            if self.rec_edit_row + 1 < self.rec_edit_lines.len() {
+                self.rec_edit_row += 1;
+            }
+        } else {
+            self.rec_edit_row = self.rec_edit_row.saturating_sub(1);
+        }
+        self.rec_edit_col = self.rec_edit_col.min(self.rec_line_len(self.rec_edit_row));
+    }
+
+    pub fn rec_edit_home(&mut self) {
+        self.rec_edit_col = 0;
+    }
+
+    pub fn rec_edit_end(&mut self) {
+        self.rec_edit_col = self.rec_line_len(self.rec_edit_row);
+    }
+
+    /// Insert pasted text at the cursor, honoring embedded newlines.
+    pub fn rec_edit_paste(&mut self, data: &str) {
+        for (i, part) in data.split('\n').enumerate() {
+            if i > 0 {
+                self.rec_edit_newline();
+            }
+            for c in part.chars().filter(|c| *c != '\r') {
+                self.rec_edit_insert(c);
+            }
+        }
+    }
+
+    /// Save the editor's contents to `label`. Validates the JSONL first; on
+    /// failure keeps the editor open with the error shown, otherwise reloads the
+    /// picker and returns to it.
+    pub fn save_recording_edit(&mut self, label: &str) {
+        match crate::plugin::save_recording_text(&self.recordings_conn, label, &self.rec_edit_lines)
+        {
+            Ok(()) => {
+                self.error = Some(format!("saved {label}"));
+                self.rec_edit_label = label.to_string();
+                self.reload_recordings();
+                self.screen = Screen::Recordings;
+            }
+            Err(e) => self.rec_edit_error = Some(e),
+        }
+    }
+
+    /// Save to the recording currently being edited (overwrite).
+    pub fn save_recording_edit_current(&mut self) {
+        self.save_recording_edit(&self.rec_edit_label.clone());
+    }
+
+    /// Enter "save as" mode, seeding the filename with an `-edited` suffix.
+    pub fn begin_recording_saveas(&mut self) {
+        self.rec_edit_saveas = Some(format!("{}-edited", self.rec_edit_label));
+    }
+
+    /// Commit the "save as": write the editor contents to the new label.
+    pub fn commit_recording_saveas(&mut self) {
+        let Some(label) = self.rec_edit_saveas.take() else {
+            return;
+        };
+        if label.trim().is_empty() {
+            self.rec_edit_error = Some("name required".into());
+            return;
+        }
+        self.save_recording_edit(&label);
     }
 
     /// Persist the working alert rules for the edited connection, and — if that
@@ -1398,6 +1574,36 @@ mod tests {
     }
 
     #[test]
+    fn char_byte_idx_handles_unicode() {
+        assert_eq!(char_byte_idx("aé", 0), 0);
+        assert_eq!(char_byte_idx("aé", 1), 1);
+        assert_eq!(char_byte_idx("aé", 2), 3); // é is two bytes
+        assert_eq!(char_byte_idx("aé", 9), 3); // past the end clamps to len
+    }
+
+    #[test]
+    fn recording_editor_insert_split_and_join() {
+        let mut app = App::new();
+        app.rec_edit_lines = vec!["ab".to_string()];
+        app.rec_edit_row = 0;
+        app.rec_edit_col = 1; // between 'a' and 'b'
+
+        app.rec_edit_insert('X');
+        assert_eq!(app.rec_edit_lines, vec!["aXb".to_string()]);
+        assert_eq!(app.rec_edit_col, 2);
+
+        // Enter splits the line at the cursor.
+        app.rec_edit_newline();
+        assert_eq!(app.rec_edit_lines, vec!["aX".to_string(), "b".to_string()]);
+        assert_eq!((app.rec_edit_row, app.rec_edit_col), (1, 0));
+
+        // Backspace at column 0 joins with the previous line.
+        app.rec_edit_backspace();
+        assert_eq!(app.rec_edit_lines, vec!["aXb".to_string()]);
+        assert_eq!((app.rec_edit_row, app.rec_edit_col), (0, 2));
+    }
+
+    #[test]
     fn plugin_host_dispatch_collects_actions() {
         use crate::plugin::{PluginAction, PluginEvent, PluginHost};
 
@@ -1540,6 +1746,13 @@ fn severity_rank(severity: Severity) -> u8 {
         Severity::Warn => 2,
         Severity::Error => 3,
     }
+}
+
+/// Byte index of the `col`-th character in `s`, or `s.len()` if past the end.
+/// Lets the recording editor address the cursor in characters while editing a
+/// UTF-8 `String`.
+fn char_byte_idx(s: &str, col: usize) -> usize {
+    s.char_indices().nth(col).map(|(b, _)| b).unwrap_or(s.len())
 }
 
 /// A single header marker segment summarizing a message's annotations, taking
