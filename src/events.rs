@@ -1,4 +1,4 @@
-use crate::app::{AlertForm, App, Command, Focus, FormBuffer, Screen, Status, BROKER_COMMANDS};
+use crate::app::{AlertForm, App, Command, Focus, FormBuffer, MenuAction, Screen, Status};
 use crate::config::{Connection, Subscription};
 use crate::mqtt::{self, MqttCommand};
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
@@ -288,10 +288,7 @@ fn broker_keys(app: &mut App, key: KeyEvent) {
             app.run_command(Command::Quit)
         }
         KeyCode::Char('?') => app.run_command(Command::Help),
-        KeyCode::Char('m') => {
-            app.menu_selected = 0;
-            app.screen = Screen::CommandMenu;
-        }
+        KeyCode::Char('m') => app.open_command_menu(),
         KeyCode::Tab => match app.focus {
             Focus::Tree => {
                 app.focus = Focus::Payload;
@@ -350,20 +347,25 @@ fn broker_keys(app: &mut App, key: KeyEvent) {
 }
 
 fn command_menu_keys(app: &mut App, key: KeyEvent) {
-    let len = BROKER_COMMANDS.len();
+    let len = app.menu_items.len();
     match key.code {
         KeyCode::Esc | KeyCode::Char('m') | KeyCode::Char('q') => app.screen = Screen::Broker,
         KeyCode::Char('j') | KeyCode::Down => {
-            app.menu_selected = (app.menu_selected + 1).min(len - 1);
+            if len > 0 {
+                app.menu_selected = (app.menu_selected + 1).min(len - 1);
+            }
         }
         KeyCode::Char('k') | KeyCode::Up => {
             app.menu_selected = app.menu_selected.saturating_sub(1);
         }
-        KeyCode::Enter => {
-            let cmd = BROKER_COMMANDS[app.menu_selected.min(len - 1)].0;
-            // Return to the broker first; the command may then set its own screen.
+        KeyCode::Enter if len > 0 => {
+            let action = app.menu_items[app.menu_selected.min(len - 1)].action;
+            // Return to the broker first; a command may then set its own screen.
             app.screen = Screen::Broker;
-            app.run_command(cmd);
+            match action {
+                MenuAction::Core(cmd) => app.run_command(cmd),
+                MenuAction::Plugin { plugin, id } => app.invoke_plugin_command(plugin, id),
+            }
         }
         _ => {}
     }

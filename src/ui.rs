@@ -1,6 +1,5 @@
 use crate::app::{
     AlertForm, App, DetailKind, DetailLine, Focus, PaneFold, PublishBuffer, Screen, Status,
-    BROKER_COMMANDS,
 };
 use crate::plugin::{InspectorStyle, Severity};
 use ratatui::{
@@ -786,19 +785,27 @@ fn draw_plugins(f: &mut Frame, app: &App, area: Rect) {
 }
 
 fn draw_command_menu(f: &mut Frame, app: &App, area: Rect) {
-    let popup = center_rect(area, 62, 60);
+    let popup = center_rect(area, 66, 72);
     f.render_widget(Clear, popup);
 
-    let items: Vec<ListItem> = BROKER_COMMANDS
+    let items: Vec<ListItem> = app
+        .menu_items
         .iter()
-        .map(|(_, key, desc)| {
-            ListItem::new(Line::from(vec![
+        .map(|it| {
+            let mut spans = vec![
                 Span::styled(
-                    format!(" {:<5}", key),
+                    format!(" {:<4}", it.key),
                     Style::default().fg(ACCENT).add_modifier(Modifier::BOLD),
                 ),
-                Span::styled(desc.to_string(), Style::default().fg(Color::White)),
-            ]))
+                Span::styled(it.label.clone(), Style::default().fg(Color::White)),
+            ];
+            if !it.note.is_empty() {
+                spans.push(Span::styled(
+                    format!("  ({})", it.note),
+                    Style::default().fg(DIM),
+                ));
+            }
+            ListItem::new(Line::from(spans))
         })
         .collect();
 
@@ -813,10 +820,9 @@ fn draw_command_menu(f: &mut Frame, app: &App, area: Rect) {
         .highlight_symbol("▶ ");
 
     let mut state = ListState::default();
-    state.select(Some(
-        app.menu_selected
-            .min(BROKER_COMMANDS.len().saturating_sub(1)),
-    ));
+    if !app.menu_items.is_empty() {
+        state.select(Some(app.menu_selected.min(app.menu_items.len() - 1)));
+    }
     f.render_stateful_widget(list, popup, &mut state);
 }
 

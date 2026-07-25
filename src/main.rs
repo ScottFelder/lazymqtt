@@ -53,8 +53,10 @@ async fn run<B: ratatui::backend::Backend>(
     app: &mut App,
 ) -> Result<()> {
     // Plugins get a Tick roughly once a second (for silence detection, rolling
-    // stats, etc.) without coupling to the input-poll cadence.
+    // stats, etc.) and a faster FrameTick (~10 Hz) for time-sensitive work like
+    // replay pacing — both decoupled from the input-poll cadence.
     let mut last_tick = Instant::now();
+    let mut last_frame = Instant::now();
 
     loop {
         // Drain any pending MQTT events without blocking the render loop.
@@ -85,6 +87,10 @@ async fn run<B: ratatui::backend::Backend>(
         if last_tick.elapsed() >= Duration::from_secs(1) {
             app.dispatch_plugin(PluginEvent::Tick);
             last_tick = Instant::now();
+        }
+        if last_frame.elapsed() >= Duration::from_millis(100) {
+            app.dispatch_plugin(PluginEvent::FrameTick);
+            last_frame = Instant::now();
         }
 
         terminal.draw(|f| ui::draw(f, app))?;

@@ -22,7 +22,7 @@ pub enum Severity {
 
 /// A note a plugin attaches to a specific message (validation result, decode
 /// status, alert, …). Never mutates the original message.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Annotation {
     pub plugin: &'static str,
     pub severity: Severity,
@@ -46,7 +46,11 @@ pub enum PluginEvent {
         qos: u8,
         retained: bool,
     },
+    /// ~1 Hz — silence detection, periodic status.
     Tick,
+    /// ~10 Hz — for time-sensitive plugins (e.g. replay pacing). Kept separate
+    /// from `Tick` so per-second logic (alerts' silence counter) stays correct.
+    FrameTick,
     Shutdown,
     // Defined for forward-compatibility but not yet dispatched (see the plugin
     // module docs): TopicSelected, MessageSelected, BeforePublish, AfterPublish,
@@ -55,7 +59,7 @@ pub enum PluginEvent {
 
 /// The only ways a plugin can affect the running app. Applied by
 /// `App::apply_plugin_actions`.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum PluginAction {
     /// Attach a note to a message (by its stable id).
     Annotate {
@@ -86,6 +90,17 @@ pub struct PluginMetadata {
     pub name: &'static str,
     pub version: &'static str,
     pub description: &'static str,
+}
+
+/// A command a plugin exposes in the `m` command menu. `label` is computed
+/// fresh each time the menu opens, so it can reflect current state (e.g.
+/// "Stop recording (12 msgs)"). `id` is the stable handle passed back to
+/// `Plugin::invoke`.
+#[derive(Debug, Clone)]
+pub struct PluginCommand {
+    pub id: &'static str,
+    pub label: String,
+    pub glyph: &'static str,
 }
 
 /// Handed to a plugin once at load time. Minimal for now; grows as the API does.

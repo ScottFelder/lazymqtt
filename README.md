@@ -15,7 +15,7 @@ A fast, terminal-UI MQTT client written in Rust — inspired by [MQTT Explorer](
 - **Publish** — send messages to any topic with QoS 0/1/2 and an optional retain flag.
 - **Clear retained messages** — drop a broker's retained message on the selected topic (with confirmation).
 - **Copy & paste** — keyboard text selection in the Payload/History panes yanks to the system clipboard; paste into any input field.
-- **Plugins** — an in-process plugin system observes the message stream and annotates or re-renders it. Built-ins: a JSON-validity marker and a JSON pretty-print view. Enable/disable per plugin (persisted).
+- **Plugins** — an in-process plugin system observes the message stream and annotates, re-renders, or acts on it. Built-ins: a JSON-validity marker, a JSON pretty-print view, per-connection topic alerts, and a traffic recorder/replayer. Enable/disable per plugin (persisted).
 - **Fast** — async `rumqttc` event loop feeding a non-blocking `ratatui` render loop; release build is LTO-optimized and stripped.
 
 ## Build & Run
@@ -95,6 +95,17 @@ Built-in plugins:
 - **json-marker** — flags whether each payload is valid JSON (annotation).
 - **json-view** — pretty-prints JSON payloads (syntax-colored) as an alternate Payload view (`i`).
 - **topic-alerts** — raises alerts (annotations + status) from **per-connection** rules.
+- **topic-recorder** — records the connection's traffic to a file and replays it back to the broker, preserving timing.
+
+Some plugins add commands to the command menu (`m`). The recorder is driven
+entirely from there: **Start/Stop recording**, **Replay newest recording**, and
+toggles for **loop**, topic **prefix** (`replay/` on/off), and **speed**
+(1x → 2x → 5x). Recordings are written per connection as JSON Lines to
+`plugins/recordings/<connection-id>-<timestamp>.jsonl` (one message per line with
+a relative `offset_ms`); **Replay newest** plays back the latest recording for
+the active connection. By default replay republishes under a `replay/` topic
+prefix so it never clobbers live topics, and recording pauses during replay so
+the plugin doesn't capture its own echoes.
 
 Alert rules are **per connection** and edited in-app: press `A` (from
 Connections or Broker) to open the rules editor — `a` add, `e` edit, `d` delete.
@@ -108,8 +119,8 @@ and indexes arrays (e.g. `data.sensors.0.temp`); without it the whole payload is
 used. JSON numbers and numeric strings (`"85"`) both work. Severity is `warn`
 (default) or `error`. Alerts are visual only — no commands are run.
 
-See `FEATURES.md` for the plugin roadmap (schema validation, record/replay,
-analytics, external-process/WASM loading, …).
+See `FEATURES.md` for the plugin roadmap (schema validation, analytics,
+external-process/WASM loading, …).
 
 ## Quick test
 
@@ -133,7 +144,7 @@ src/
     mod.rs       Plugin trait + PluginHost
     api.rs       event/action/annotation/inspector types
     config.rs    per-plugin enable/disable persistence
-    builtin/     bundled plugins (json-marker, json-view)
+    builtin/     bundled plugins (json-marker, json-view, topic-alerts, topic-recorder)
 ```
 
 ## License
