@@ -3,6 +3,7 @@ mod clipboard;
 mod config;
 mod events;
 mod mqtt;
+mod paths;
 mod plugin;
 mod tree;
 mod ui;
@@ -22,6 +23,10 @@ use std::time::{Duration, Instant};
 
 #[tokio::main]
 async fn main() -> Result<()> {
+    // Relocate any pre-existing config from the old macOS location before
+    // anything reads it.
+    paths::migrate_legacy_config();
+
     enable_raw_mode()?;
     let mut stdout = io::stdout();
     // No mouse capture: leaving the mouse to the terminal keeps native

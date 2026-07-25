@@ -1,5 +1,4 @@
-use anyhow::{Context, Result};
-use directories::ProjectDirs;
+use anyhow::Result;
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::PathBuf;
@@ -71,9 +70,7 @@ pub struct Config {
 }
 
 fn config_path() -> Result<PathBuf> {
-    let dirs = ProjectDirs::from("dev", "lazymqtt", "lazymqtt")
-        .context("could not resolve config directory")?;
-    let dir = dirs.config_dir().to_path_buf();
+    let dir = crate::paths::config_dir();
     fs::create_dir_all(&dir).ok();
     Ok(dir.join("connections.json"))
 }

@@ -39,6 +39,8 @@ main.rs      Terminal setup + the render/input loop. Owns the tokio runtime.
 app.rs       All UI state (App struct), Screen/Focus/PaneFold/Status enums,
              form buffers, the DetailLine model, plugin host + annotations.
 config.rs    Connection + Subscription structs; JSON persistence to disk.
+paths.rs     Config dir (~/.config/lazymqtt, XDG on every OS) + one-time
+             migration from the old macOS Application Support location.
 mqtt.rs      Async client task. Message, MqttEvent, MqttCommand, MqttHandle.
 tree.rs      TopicTree: aggregates messages into a hierarchy split on '/'.
 ui.rs        All ratatui rendering. One draw_* fn per screen. No state mutation.

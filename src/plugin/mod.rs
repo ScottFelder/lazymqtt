@@ -33,7 +33,6 @@ pub use recordings::Recording;
 pub const RECORDER: &str = "topic-recorder";
 
 use config::PluginConfig;
-use directories::ProjectDirs;
 use std::path::PathBuf;
 
 /// Load a connection's alert rules from the plugin config dir.
@@ -301,7 +300,5 @@ impl Default for PluginHost {
 /// Where plugin-scoped config/state lives — a `plugins/` dir beside
 /// `connections.json`, kept separate from connection profiles on purpose.
 fn plugin_config_dir() -> PathBuf {
-    ProjectDirs::from("dev", "lazymqtt", "lazymqtt")
-        .map(|d| d.config_dir().join("plugins"))
-        .unwrap_or_else(|| PathBuf::from("plugins"))
+    crate::paths::config_dir().join("plugins")
 }

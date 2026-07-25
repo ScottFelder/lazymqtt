@@ -33,10 +33,11 @@ cargo build --release && ./target/release/lazymqtt   # optimized
 cargo test           # unit tests
 ```
 
-Config lives in your platform config dir — `connections.json` for broker
-profiles and `plugins/config.json` for plugin enable/disable state. For example
-on macOS: `~/Library/Application Support/dev.lazymqtt.lazymqtt/`, and on Linux
-`~/.config/lazymqtt/`.
+Config lives in `~/.config/lazymqtt/` on both macOS and Linux (or
+`$XDG_CONFIG_HOME/lazymqtt/` if that's set) — `connections.json` for broker
+profiles and `plugins/` for plugin state. On first run, config from the old
+macOS location (`~/Library/Application Support/dev.lazymqtt.lazymqtt/`) is moved
+here automatically.
 
 Each connection uses a unique client id at runtime (`<your-id>-<random>`) so two
 instances (or a leftover) never collide on the broker.
@@ -170,6 +171,7 @@ src/
   main.rs      entry point, terminal + async render/input loop
   app.rs       application state (App, Screen/Focus/PaneFold, DetailLine)
   config.rs    connection/subscription persistence
+  paths.rs     config dir resolution (~/.config/lazymqtt) + legacy migration
   mqtt.rs      async MQTT client task + event/command channels
   tree.rs      hierarchical topic tree
   ui.rs        ratatui rendering (one draw_* fn per screen)
