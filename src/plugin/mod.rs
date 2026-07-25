@@ -116,8 +116,7 @@ impl PluginHost {
                 // disabled until the user enables them (opt-in) — except in
                 // tests, where every loaded built-in is on.
                 let loaded = plugin.on_load(&ctx).is_ok();
-                let enabled =
-                    loaded && (cfg!(test) || config.is_enabled(plugin.metadata().name));
+                let enabled = loaded && (cfg!(test) || config.is_enabled(plugin.metadata().name));
                 Slot { plugin, enabled }
             })
             .collect();

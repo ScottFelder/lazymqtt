@@ -30,6 +30,7 @@ pub enum Command {
     Unsubscribe,
     Publish,
     ClearRetained,
+    ClearTopic,
     ClearTree,
     AlertRules,
     Plugins,
@@ -51,6 +52,11 @@ pub const BROKER_COMMANDS: &[(Command, &str, &str)] = &[
         Command::ClearRetained,
         "r",
         "Clear the retained message on the selected topic",
+    ),
+    (
+        Command::ClearTopic,
+        "x",
+        "Clear the selected topic from the view",
     ),
     (Command::ClearTree, "c", "Clear the topic tree"),
     (Command::AlertRules, "A", "Edit alert rules"),
@@ -568,6 +574,11 @@ impl App {
                     self.screen = Screen::ClearRetained;
                 }
             }
+            Command::ClearTopic => {
+                if let Some(topic) = self.selected_topic() {
+                    self.clear_topic_subtree(&topic);
+                }
+            }
             Command::ClearTree => {
                 self.tree.clear();
                 self.history.clear();
@@ -587,6 +598,27 @@ impl App {
             }
             Command::Quit => self.should_quit = true,
         }
+    }
+
+    /// Remove a topic and its subtree from the local view: the tree node, the
+    /// history messages under it (with their annotations), and any saved
+    /// expansion state. Purely local — it does not unsubscribe or touch the
+    /// broker, so new messages on the topic repopulate it.
+    fn clear_topic_subtree(&mut self, topic: &str) {
+        if !self.tree.remove(topic) {
+            return;
+        }
+        let prefix = format!("{topic}/");
+        let under = |t: &str| t == topic || t.starts_with(prefix.as_str());
+        for m in self.history.iter().filter(|m| under(&m.topic)) {
+            self.annotations.remove(&m.id);
+        }
+        self.history.retain(|m| !under(&m.topic));
+        self.expanded
+            .retain(|p| !(p.as_str() == topic || p.starts_with(prefix.as_str())));
+        let rows = self.tree.rows(&self.expanded);
+        self.tree_selected = self.tree_selected.min(rows.len().saturating_sub(1));
+        self.reset_message_view();
     }
 
     fn unsubscribe_selected(&mut self) {
@@ -1185,6 +1217,36 @@ mod tests {
         assert!(app.annotations_for(1).is_empty());
         assert_eq!(app.history.first().unwrap().id, 1001);
         assert!(!app.annotations_for(1001).is_empty());
+    }
+
+    #[test]
+    fn clear_topic_removes_only_selected_subtree() {
+        let mut app = App::new();
+        app.push_message(msg("sensor/temp", "1"));
+        app.push_message(msg("sensor/humidity", "2"));
+        app.push_message(msg("status", "up"));
+        app.expanded.insert("sensor".to_string());
+
+        // Select the "sensor" parent row (rows are sorted: sensor, sensor/humidity,
+        // sensor/temp, status) and clear it.
+        app.tree_selected = 0;
+        assert_eq!(app.selected_topic().as_deref(), Some("sensor"));
+        app.run_command(Command::ClearTopic);
+
+        // The whole sensor subtree is gone from the tree, its history, its
+        // annotations, and its saved expansion — but "status" survives.
+        let rows: Vec<String> = app
+            .tree
+            .rows(&app.expanded)
+            .into_iter()
+            .map(|r| r.path)
+            .collect();
+        assert_eq!(rows, vec!["status".to_string()]);
+        assert!(app.history.iter().all(|m| m.topic == "status"));
+        assert!(!app.expanded.contains("sensor"));
+        assert!(app.annotations_for(1).is_empty()); // sensor/temp's annotation
+        assert!(app.annotations_for(2).is_empty()); // sensor/humidity's annotation
+        assert!(!app.annotations_for(3).is_empty()); // status kept its annotation
     }
 
     #[test]

@@ -61,7 +61,8 @@ instances (or a leftover) never collide on the broker.
 | `Enter` | expand/collapse · `→` expand · `←` collapse |
 | `Tab` | cycle panes · `1`/`2`/`3` focus Topics/Payload/History |
 | `s` · `u` | subscribe · unsubscribe (selected) |
-| `p` · `r` · `c` | publish · clear retained · clear tree |
+| `p` · `r` | publish · clear retained (selected) |
+| `x` · `c` | clear selected topic (from view) · clear tree |
 | `P` · `?` | plugins · help |
 | `Esc` · `Ctrl-q` | disconnect · quit |
 

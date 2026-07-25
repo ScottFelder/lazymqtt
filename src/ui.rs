@@ -851,7 +851,7 @@ fn draw_help(f: &mut Frame, app: &App, area: Rect) {
         Line::from("  3            focus History"),
         Line::from("  s            subscribe      ·   u        unsubscribe (selected)"),
         Line::from("  p            publish        ·   c        clear tree"),
-        Line::from("  r            clear retained message on selected topic"),
+        Line::from("  x            clear selected topic (from view) ·  r  clear retained msg"),
         Line::from("  A            edit alert rules (per connection) · P  plugins"),
         Line::from("  Esc          disconnect     ·   ?        this help"),
         Line::from(""),

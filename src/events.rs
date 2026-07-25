@@ -301,6 +301,7 @@ fn broker_keys(app: &mut App, key: KeyEvent) {
             }
         },
         KeyCode::Char('c') => app.run_command(Command::ClearTree),
+        KeyCode::Char('x') => app.run_command(Command::ClearTopic),
         KeyCode::Char('p') => app.run_command(Command::Publish),
         KeyCode::Char('j') | KeyCode::Down if app.focus == Focus::Tree => {
             if len > 0 {
