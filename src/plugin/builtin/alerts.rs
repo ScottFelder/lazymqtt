@@ -168,16 +168,34 @@ fn alert(id: u64, severity: crate::plugin::Severity, text: String) -> Vec<Plugin
     ]
 }
 
-/// A number from the payload: a named top-level JSON field, or the whole
-/// payload parsed as a number.
+/// A number from the payload.
+///
+/// With `field`, the payload is parsed as JSON and the value at that path is
+/// read — the path is dot-separated and may nest into objects and index arrays
+/// (e.g. `data.sensors.0.temp`). Without `field`, the whole payload is used.
+/// In both cases a JSON number is taken as-is and a numeric string (`"85"`) is
+/// coerced.
 fn extract_number(payload: &str, field: &Option<String>) -> Option<f64> {
     match field {
-        Some(f) => serde_json::from_str::<serde_json::Value>(payload)
-            .ok()?
-            .get(f)?
-            .as_f64(),
-        None => payload.trim().parse::<f64>().ok(),
+        Some(f) => {
+            let root: serde_json::Value = serde_json::from_str(payload).ok()?;
+            let pointer = format!("/{}", f.trim().replace('.', "/"));
+            value_as_number(root.pointer(&pointer)?)
+        }
+        None => {
+            if let Ok(v) = payload.trim().parse::<f64>() {
+                Some(v)
+            } else {
+                value_as_number(&serde_json::from_str(payload).ok()?)
+            }
+        }
     }
+}
+
+/// A JSON value as a number: numbers directly, numeric strings coerced.
+fn value_as_number(v: &serde_json::Value) -> Option<f64> {
+    v.as_f64()
+        .or_else(|| v.as_str().and_then(|s| s.trim().parse::<f64>().ok()))
 }
 
 /// MQTT topic-filter match (`+` one level, `#` the rest).
@@ -244,13 +262,28 @@ mod tests {
 
     #[test]
     fn extract_number_plain_and_field() {
+        let f = |s: &str| Some(s.to_string());
+        // Plain payloads.
         assert_eq!(extract_number("85", &None), Some(85.0));
         assert_eq!(extract_number("nope", &None), None);
+        assert_eq!(extract_number("\"85\"", &None), Some(85.0)); // JSON numeric string
+                                                                 // Top-level field.
+        assert_eq!(extract_number(r#"{"temp":21.4}"#, &f("temp")), Some(21.4));
+        assert_eq!(extract_number(r#"{"other":1}"#, &f("temp")), None);
+        // Numeric string coercion.
+        assert_eq!(extract_number(r#"{"temp":"85"}"#, &f("temp")), Some(85.0));
+        // Nested path.
         assert_eq!(
-            extract_number(r#"{"temp":21.4}"#, &Some("temp".into())),
+            extract_number(r#"{"data":{"temp":21.4}}"#, &f("data.temp")),
             Some(21.4)
         );
-        assert_eq!(extract_number(r#"{"other":1}"#, &Some("temp".into())), None);
+        // Array indexing.
+        assert_eq!(
+            extract_number(r#"{"vals":[1,2,3]}"#, &f("vals.1")),
+            Some(2.0)
+        );
+        // Missing path.
+        assert_eq!(extract_number(r#"{"data":{}}"#, &f("data.temp")), None);
     }
 
     #[test]
