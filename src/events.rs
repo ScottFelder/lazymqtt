@@ -17,6 +17,7 @@ pub fn handle_key(app: &mut App, key: KeyEvent) {
         Screen::AlertRuleForm => alert_form_keys(app, key),
         Screen::Recordings => recordings_keys(app, key),
         Screen::RecordingEdit => recording_edit_keys(app, key),
+        Screen::Theme => theme_keys(app, key),
         Screen::CommandMenu => command_menu_keys(app, key),
         Screen::Help => {
             app.screen = if app.handle.is_some() {
@@ -52,6 +53,11 @@ pub fn handle_paste(app: &mut App, data: String) {
                 app.rec_edit_paste(&data);
             }
         }
+        Screen::Theme => {
+            if let Some(buf) = app.theme_edit.as_mut() {
+                buf.push_str(&strip_newlines(&data));
+            }
+        }
         Screen::ConnectionForm => {
             let is_port = app.form.field == 2;
             if let Some(s) = field_mut(&mut app.form) {
@@ -80,6 +86,7 @@ fn connections_keys(app: &mut App, key: KeyEvent) {
             app.screen = Screen::Plugins;
         }
         KeyCode::Char('A') => app.open_alerts_editor(),
+        KeyCode::Char('T') => app.open_theme(),
         KeyCode::Char('j') | KeyCode::Down => {
             if len > 0 {
                 app.conn_selected = (app.conn_selected + 1) % len;
@@ -358,6 +365,7 @@ fn broker_keys(app: &mut App, key: KeyEvent) {
         KeyCode::Char('P') => app.run_command(Command::Plugins),
         KeyCode::Char('A') => app.run_command(Command::AlertRules),
         KeyCode::Char('R') => app.run_command(Command::Recordings),
+        KeyCode::Char('T') => app.run_command(Command::Theme),
         _ => {}
     }
 }
@@ -547,6 +555,58 @@ fn recording_edit_keys(app: &mut App, key: KeyEvent) {
         KeyCode::Enter => app.rec_edit_newline(),
         KeyCode::Backspace => app.rec_edit_backspace(),
         KeyCode::Char(c) => app.rec_edit_insert(c),
+        _ => {}
+    }
+}
+
+fn theme_keys(app: &mut App, key: KeyEvent) {
+    // Editing a color role's spec in place.
+    if app.theme_edit.is_some() {
+        match key.code {
+            KeyCode::Esc => app.theme_edit = None,
+            KeyCode::Enter => app.apply_theme_edit(),
+            KeyCode::Backspace => {
+                if let Some(buf) = app.theme_edit.as_mut() {
+                    buf.pop();
+                }
+            }
+            KeyCode::Char(c) => {
+                if let Some(buf) = app.theme_edit.as_mut() {
+                    buf.push(c);
+                }
+            }
+            _ => {}
+        }
+        return;
+    }
+
+    let len = app.theme_row_count();
+    let builtins = app.theme_builtins_len();
+    match key.code {
+        KeyCode::Esc | KeyCode::Char('q') => {
+            app.screen = if app.handle.is_some() {
+                Screen::Broker
+            } else {
+                Screen::Connections
+            };
+        }
+        KeyCode::Char('j') | KeyCode::Down => {
+            if len > 0 {
+                app.theme_selected = (app.theme_selected + 1).min(len - 1);
+            }
+        }
+        KeyCode::Char('k') | KeyCode::Up => {
+            app.theme_selected = app.theme_selected.saturating_sub(1);
+        }
+        KeyCode::Char('s') => app.save_theme(),
+        // A preset row applies; a color row opens the spec editor.
+        KeyCode::Enter | KeyCode::Char('e') => {
+            if app.theme_selected < builtins {
+                app.apply_theme_builtin(app.theme_selected);
+            } else {
+                app.begin_theme_edit();
+            }
+        }
         _ => {}
     }
 }

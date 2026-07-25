@@ -41,6 +41,8 @@ app.rs       All UI state (App struct), Screen/Focus/PaneFold/Status enums,
 config.rs    Connection + Subscription structs; JSON persistence to disk.
 paths.rs     Config dir (~/.config/lazymqtt, XDG on every OS) + one-time
              migration from the old macOS Application Support location.
+theme.rs     Theme (color specs) + Palette (resolved Colors) + presets +
+             theme.json persistence. See the theming note below.
 mqtt.rs      Async client task. Message, MqttEvent, MqttCommand, MqttHandle.
 tree.rs      TopicTree: aggregates messages into a hierarchy split on '/'.
 ui.rs        All ratatui rendering. One draw_* fn per screen. No state mutation.
@@ -110,8 +112,16 @@ this loop — plugin dispatch is synchronous here, so plugins must be fast.
 - **Persistence is explicit**: after any change to `config.connections` call
   `app.config.save()`. There is no autosave. Plugin enable/disable persists via
   `PluginHost::toggle`.
-- **Colors**: use the `ACCENT` and `DIM` constants in ui.rs rather than raw
-  `Color` values.
+- **Colors go through the theme**: every color comes from the active `Palette`
+  (`app.palette`, resolved from `app.theme`), never a hardcoded `Color`. Draw
+  functions that take `app` read `app.palette`; the color-using helpers
+  (`title_block`, `pane_title`, `style_for`, `render_vscrollbar`, the popups)
+  take a `pal: &Palette`. Adding a new colored element means adding a role to
+  `theme.rs` (the `ROLES` table, the `I_*` index, `Palette`, `Default`, and each
+  preset) and reading `pal.<role>` — don't reintroduce literal `Color::` values
+  in ui.rs. The theme is edited on `Screen::Theme` and persisted to `theme.json`;
+  the palette is recomputed (`App::refresh_palette`) on every change for live
+  preview.
 - **DetailLine model**: the Payload and History panes are built from
   `Vec<DetailLine>` (segments + a decorative non-selectable `lead`). The
   keyboard selection cursor and yank operate on `App::active_lines()` (the
