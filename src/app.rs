@@ -4,6 +4,7 @@ use crate::plugin::{
     AlertCondition, AlertRule, AlertSeverity, Annotation, InspectMessage, InspectorStyle,
     InspectorView, PluginAction, PluginEvent, PluginHost, Recording, Severity,
 };
+use crate::theme::{Palette, Theme};
 use crate::tree::TopicTree;
 use std::collections::{HashMap, HashSet};
 
@@ -20,6 +21,7 @@ pub enum Screen {
     AlertRuleForm,
     Recordings,
     RecordingEdit,
+    Theme,
     CommandMenu,
     Help,
 }
@@ -36,6 +38,7 @@ pub enum Command {
     ClearTree,
     AlertRules,
     Recordings,
+    Theme,
     Plugins,
     Help,
     Disconnect,
@@ -68,6 +71,7 @@ pub const BROKER_COMMANDS: &[(Command, &str, &str)] = &[
         "R",
         "Recordings — replay, rename, delete",
     ),
+    (Command::Theme, "T", "Theme — colors & presets"),
     (Command::Plugins, "P", "Manage plugins"),
     (Command::Help, "?", "Help"),
     (Command::Disconnect, "Esc", "Disconnect"),
@@ -413,6 +417,16 @@ pub struct App {
     pub rec_edit_label: String,
     pub rec_edit_error: Option<String>,
     pub rec_edit_saveas: Option<String>,
+
+    // Theming. `theme` is the editable spec set; `palette` is its resolved
+    // ratatui colors, which the renderer reads (recomputed on every change).
+    // `theme_selected` is the editor cursor over [built-in presets ++ color
+    // roles]; `theme_edit`, when Some, holds the spec being typed for the
+    // selected role.
+    pub theme: Theme,
+    pub palette: Palette,
+    pub theme_selected: usize,
+    pub theme_edit: Option<String>,
     // Which Payload-pane view is active: 0 = raw text, 1.. = plugin inspector
     // views (in plugin order). Clamped when fewer views are available.
     pub payload_view: usize,
@@ -427,8 +441,20 @@ pub struct App {
 
 impl App {
     pub fn new() -> Self {
+        // Tests must not read the user's real theme file (mirrors the plugin
+        // config isolation).
+        let theme = if cfg!(test) {
+            Theme::default()
+        } else {
+            Theme::load()
+        };
+        let palette = theme.palette();
         Self {
             config: Config::load(),
+            theme,
+            palette,
+            theme_selected: 0,
+            theme_edit: None,
             screen: Screen::Connections,
             focus: Focus::Tree,
             collapsed: PaneFold::None,
@@ -662,6 +688,7 @@ impl App {
             }
             Command::AlertRules => self.open_alerts_editor(),
             Command::Recordings => self.open_recordings(),
+            Command::Theme => self.open_theme(),
             Command::Plugins => {
                 self.plugins_selected = 0;
                 self.screen = Screen::Plugins;
@@ -989,6 +1016,71 @@ impl App {
             return;
         }
         self.save_recording_edit(&label);
+    }
+
+    // ---- Theme editor ------------------------------------------------------
+
+    /// Number of built-in presets shown above the color roles in the editor.
+    pub fn theme_builtins_len(&self) -> usize {
+        crate::theme::builtins().len()
+    }
+
+    /// Total editor rows: presets followed by the color roles.
+    pub fn theme_row_count(&self) -> usize {
+        self.theme_builtins_len() + crate::theme::ROLE_COUNT
+    }
+
+    /// If the selected row is a color role, its 0-based role index.
+    pub fn theme_selected_role(&self) -> Option<usize> {
+        self.theme_selected
+            .checked_sub(self.theme_builtins_len())
+            .filter(|i| *i < crate::theme::ROLE_COUNT)
+    }
+
+    pub fn open_theme(&mut self) {
+        self.theme_selected = 0;
+        self.theme_edit = None;
+        self.screen = Screen::Theme;
+    }
+
+    /// Recompute the render palette after any change to `theme`.
+    fn refresh_palette(&mut self) {
+        self.palette = self.theme.palette();
+    }
+
+    /// Apply the built-in preset at `index` as the working theme (live preview).
+    pub fn apply_theme_builtin(&mut self, index: usize) {
+        if let Some((name, theme)) = crate::theme::builtins().into_iter().nth(index) {
+            self.theme = theme;
+            self.refresh_palette();
+            self.error = Some(format!("applied {name} theme (T then s to save)"));
+        }
+    }
+
+    /// Begin editing the selected color role, seeding the buffer with its spec.
+    pub fn begin_theme_edit(&mut self) {
+        if let Some(role) = self.theme_selected_role() {
+            self.theme_edit = Some(self.theme.spec(role).to_string());
+        }
+    }
+
+    /// Commit the in-progress color edit to the selected role (live preview).
+    pub fn apply_theme_edit(&mut self) {
+        let Some(spec) = self.theme_edit.take() else {
+            return;
+        };
+        if let Some(role) = self.theme_selected_role() {
+            self.theme.set_spec(role, spec.trim().to_string());
+            self.refresh_palette();
+        }
+    }
+
+    /// Persist the working theme to `theme.json`.
+    pub fn save_theme(&mut self) {
+        match self.theme.save() {
+            Ok(()) => self.error = Some("theme saved".into()),
+            Err(e) => self.error = Some(format!("theme save failed: {e}")),
+        }
     }
 
     /// Persist the working alert rules for the edited connection, and — if that

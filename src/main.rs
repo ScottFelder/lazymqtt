@@ -5,6 +5,7 @@ mod events;
 mod mqtt;
 mod paths;
 mod plugin;
+mod theme;
 mod tree;
 mod ui;
 
