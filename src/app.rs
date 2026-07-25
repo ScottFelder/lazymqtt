@@ -1,8 +1,8 @@
 use crate::config::{Config, Connection};
 use crate::mqtt::{Message, MqttCommand, MqttHandle};
 use crate::plugin::{
-    Annotation, InspectMessage, InspectorStyle, InspectorView, PluginAction, PluginEvent,
-    PluginHost, Severity,
+    AlertCondition, AlertRule, AlertSeverity, Annotation, InspectMessage, InspectorStyle,
+    InspectorView, PluginAction, PluginEvent, PluginHost, Severity,
 };
 use crate::tree::TopicTree;
 use std::collections::{HashMap, HashSet};
@@ -16,6 +16,8 @@ pub enum Screen {
     Subscribe,
     ClearRetained,
     Plugins,
+    AlertRules,
+    AlertRuleForm,
     Help,
 }
 
@@ -182,6 +184,92 @@ impl Default for PublishBuffer {
     }
 }
 
+/// Editable buffer backing the alert-rule form (one rule at a time).
+#[derive(Default)]
+pub struct AlertForm {
+    pub editing_index: Option<usize>, // None = adding a new rule
+    pub topic: String,
+    pub when: usize,     // 0 above, 1 below, 2 changed, 3 silent
+    pub value: String,   // above/below threshold
+    pub seconds: String, // silent duration
+    pub field: String,   // optional JSON field for above/below
+    pub severity: usize, // 0 warn, 1 error
+    pub focus: usize,    // focused field, 0..FIELD_COUNT
+}
+
+impl AlertForm {
+    pub const FIELD_COUNT: usize = 6; // topic, when, value, seconds, field, severity
+    pub const WHEN_LABELS: [&'static str; 4] = ["above", "below", "changed", "silent"];
+    pub const SEVERITY_LABELS: [&'static str; 2] = ["warn", "error"];
+
+    pub fn from_rule(index: usize, rule: &AlertRule) -> Self {
+        let (when, value, seconds) = match rule.cond {
+            AlertCondition::Above { value } => (0, value.to_string(), String::new()),
+            AlertCondition::Below { value } => (1, value.to_string(), String::new()),
+            AlertCondition::Changed => (2, String::new(), String::new()),
+            AlertCondition::Silent { seconds } => (3, String::new(), seconds.to_string()),
+        };
+        Self {
+            editing_index: Some(index),
+            topic: rule.topic.clone(),
+            when,
+            value,
+            seconds,
+            field: rule.field.clone().unwrap_or_default(),
+            severity: match rule.severity {
+                AlertSeverity::Warn => 0,
+                AlertSeverity::Error => 1,
+            },
+            focus: 0,
+        }
+    }
+
+    /// Build a rule from the form, validating the inputs.
+    pub fn to_rule(&self) -> Result<AlertRule, String> {
+        let topic = self.topic.trim();
+        if topic.is_empty() {
+            return Err("Topic is required".into());
+        }
+        let cond = match self.when {
+            0 | 1 => {
+                let v: f64 = self
+                    .value
+                    .trim()
+                    .parse()
+                    .map_err(|_| "Value must be a number".to_string())?;
+                if self.when == 0 {
+                    AlertCondition::Above { value: v }
+                } else {
+                    AlertCondition::Below { value: v }
+                }
+            }
+            2 => AlertCondition::Changed,
+            _ => {
+                let s: u64 = self
+                    .seconds
+                    .trim()
+                    .parse()
+                    .map_err(|_| "Seconds must be a whole number".to_string())?;
+                AlertCondition::Silent { seconds: s }
+            }
+        };
+        let field = {
+            let f = self.field.trim();
+            (!f.is_empty()).then(|| f.to_string())
+        };
+        Ok(AlertRule {
+            topic: topic.to_string(),
+            field,
+            severity: if self.severity == 1 {
+                AlertSeverity::Error
+            } else {
+                AlertSeverity::Warn
+            },
+            cond,
+        })
+    }
+}
+
 pub struct App {
     pub config: Config,
     pub screen: Screen,
@@ -220,6 +308,15 @@ pub struct App {
     pub sub_input: String,       // buffer for the subscribe prompt
     pub clear_topic: String,     // topic awaiting retained-message clear confirmation
     pub plugins_selected: usize, // cursor in the Plugins management screen
+
+    // Alert-rules editor (per connection). `alert_rules` is the working copy for
+    // the connection identified by `alert_edit_conn` (name shown via
+    // `alert_edit_name`); `alerts_selected` is the list cursor.
+    pub alert_rules: Vec<AlertRule>,
+    pub alerts_selected: usize,
+    pub alert_form: AlertForm,
+    pub alert_edit_conn: String,
+    pub alert_edit_name: String,
     // Which Payload-pane view is active: 0 = raw text, 1.. = plugin inspector
     // views (in plugin order). Clamped when fewer views are available.
     pub payload_view: usize,
@@ -258,6 +355,11 @@ impl App {
             sub_input: String::new(),
             clear_topic: String::new(),
             plugins_selected: 0,
+            alert_rules: Vec::new(),
+            alerts_selected: 0,
+            alert_form: AlertForm::default(),
+            alert_edit_conn: String::new(),
+            alert_edit_name: String::new(),
             payload_view: 0,
             error: None,
             sel_cursor: (0, 0),
@@ -345,6 +447,43 @@ impl App {
             .get(&id)
             .map(|v| v.as_slice())
             .unwrap_or(&[])
+    }
+
+    /// Open the alert-rules editor for the active connection (if connected) or
+    /// the selected one otherwise. Alerts are per connection.
+    pub fn open_alerts_editor(&mut self) {
+        let target = if self.handle.is_some() {
+            self.active_conn().map(|c| (c.id.clone(), c.name.clone()))
+        } else {
+            self.config
+                .connections
+                .get(self.conn_selected)
+                .map(|c| (c.id.clone(), c.name.clone()))
+        };
+        let Some((id, name)) = target else {
+            self.error = Some("no connection to edit alerts for".into());
+            return;
+        };
+        self.alert_rules = crate::plugin::load_alert_rules(&id);
+        self.alert_edit_conn = id;
+        self.alert_edit_name = name;
+        self.alerts_selected = 0;
+        self.screen = Screen::AlertRules;
+    }
+
+    /// Persist the working alert rules for the edited connection, and — if that
+    /// connection is the live one — reload them into the plugin immediately.
+    pub fn persist_alert_rules(&mut self) {
+        if let Err(e) = crate::plugin::save_alert_rules(&self.alert_edit_conn, &self.alert_rules) {
+            self.error = Some(format!("save failed: {}", e));
+            return;
+        }
+        let is_active =
+            self.active_conn().map(|c| c.id.as_str()) == Some(self.alert_edit_conn.as_str());
+        if is_active {
+            let id = self.alert_edit_conn.clone();
+            self.dispatch_plugin(PluginEvent::Connected { connection: id });
+        }
     }
 
     pub fn disconnect(&mut self) {
@@ -938,6 +1077,75 @@ mod tests {
         assert_eq!(app.payload_view_label(), None);
         app.cycle_payload_view(); // no-op: only the raw view exists
         assert_eq!(app.payload_view, 0);
+    }
+
+    #[test]
+    fn alert_form_builds_valid_rules() {
+        let mut form = AlertForm {
+            topic: "f/temp".into(),
+            when: 0, // above
+            value: "80".into(),
+            severity: 1, // error
+            ..Default::default()
+        };
+        let rule = form.to_rule().expect("valid above rule");
+        assert_eq!(rule.topic, "f/temp");
+        assert!(matches!(rule.cond, AlertCondition::Above { value } if value == 80.0));
+        assert_eq!(rule.severity, AlertSeverity::Error);
+
+        form.when = 3; // silent
+        form.seconds = "30".into();
+        assert!(matches!(
+            form.to_rule().unwrap().cond,
+            AlertCondition::Silent { seconds: 30 }
+        ));
+    }
+
+    #[test]
+    fn alert_form_rejects_bad_input() {
+        // Empty topic.
+        assert!(AlertForm {
+            topic: "".into(),
+            when: 2,
+            ..Default::default()
+        }
+        .to_rule()
+        .is_err());
+        // Non-numeric threshold.
+        assert!(AlertForm {
+            topic: "t".into(),
+            when: 0,
+            value: "hot".into(),
+            ..Default::default()
+        }
+        .to_rule()
+        .is_err());
+        // Non-integer seconds.
+        assert!(AlertForm {
+            topic: "t".into(),
+            when: 3,
+            seconds: "1.5".into(),
+            ..Default::default()
+        }
+        .to_rule()
+        .is_err());
+    }
+
+    #[test]
+    fn alert_form_from_rule_round_trips() {
+        let rule = AlertRule {
+            topic: "sensors/#".into(),
+            field: Some("temp".into()),
+            severity: AlertSeverity::Error,
+            cond: AlertCondition::Below { value: 0.0 },
+        };
+        let form = AlertForm::from_rule(2, &rule);
+        assert_eq!(form.editing_index, Some(2));
+        assert_eq!(form.when, 1); // below
+        assert_eq!(form.value, "0");
+        assert_eq!(form.field, "temp");
+        assert_eq!(form.severity, 1); // error
+        assert_eq!(form.to_rule().unwrap(), rule);
     }
 }
 

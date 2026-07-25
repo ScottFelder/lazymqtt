@@ -33,7 +33,11 @@ pub struct Annotation {
 /// so dispatching one never holds a borrow into `App`.
 #[derive(Debug, Clone)]
 pub enum PluginEvent {
-    Connected,
+    /// Carries the active connection's id so plugins can load per-connection
+    /// config (e.g. topic-alerts rules).
+    Connected {
+        connection: String,
+    },
     Disconnected(String),
     MessageReceived {
         id: u64,

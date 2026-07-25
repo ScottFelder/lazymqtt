@@ -14,10 +14,12 @@
 //! Bounded queues / isolation belong to a future external-process model; this
 //! module is the stable internal API those later models would sit behind.
 
+pub mod alerts_rules;
 pub mod api;
 mod builtin;
 mod config;
 
+pub use alerts_rules::{AlertCondition, AlertRule, AlertSeverity};
 pub use api::{
     Annotation, InspectMessage, InspectorStyle, InspectorView, PluginAction, PluginContext,
     PluginEvent, PluginMetadata, Severity,
@@ -26,6 +28,16 @@ pub use api::{
 use config::PluginConfig;
 use directories::ProjectDirs;
 use std::path::PathBuf;
+
+/// Load a connection's alert rules from the plugin config dir.
+pub fn load_alert_rules(connection_id: &str) -> Vec<AlertRule> {
+    alerts_rules::load(&plugin_config_dir(), connection_id)
+}
+
+/// Persist a connection's alert rules to the plugin config dir.
+pub fn save_alert_rules(connection_id: &str, rules: &[AlertRule]) -> anyhow::Result<()> {
+    alerts_rules::save(&plugin_config_dir(), connection_id, rules)
+}
 
 pub trait Plugin {
     fn metadata(&self) -> PluginMetadata;
