@@ -21,8 +21,8 @@ mod config;
 
 pub use alerts_rules::{AlertCondition, AlertRule, AlertSeverity};
 pub use api::{
-    Annotation, InspectMessage, InspectorStyle, InspectorView, PluginAction, PluginContext,
-    PluginEvent, PluginMetadata, Severity,
+    Annotation, InspectMessage, InspectorStyle, InspectorView, PluginAction, PluginCommand,
+    PluginContext, PluginEvent, PluginMetadata, Severity,
 };
 
 use config::PluginConfig;
@@ -57,6 +57,17 @@ pub trait Plugin {
     /// to offer for this message. Default: no view.
     fn inspect(&self, _msg: &InspectMessage) -> Option<InspectorView> {
         None
+    }
+
+    /// Commands this plugin contributes to the `m` command menu. Called fresh
+    /// each time the menu opens, so labels may reflect current state.
+    fn commands(&self) -> Vec<PluginCommand> {
+        Vec::new()
+    }
+
+    /// Run one of this plugin's commands, by the `id` from `commands()`.
+    fn invoke(&mut self, _id: &str) -> Vec<PluginAction> {
+        Vec::new()
     }
 }
 
@@ -133,6 +144,25 @@ impl PluginHost {
             .filter(|s| s.enabled)
             .filter_map(|s| s.plugin.inspect(msg))
             .collect()
+    }
+
+    /// Commands contributed by the enabled plugins, each tagged with its slot
+    /// index so `invoke` can target the right plugin.
+    pub fn commands(&self) -> Vec<(usize, PluginCommand)> {
+        self.slots
+            .iter()
+            .enumerate()
+            .filter(|(_, s)| s.enabled)
+            .flat_map(|(i, s)| s.plugin.commands().into_iter().map(move |c| (i, c)))
+            .collect()
+    }
+
+    /// Run the plugin at `index`'s command `id`, returning its actions.
+    pub fn invoke(&mut self, index: usize, id: &str) -> Vec<PluginAction> {
+        match self.slots.get_mut(index) {
+            Some(slot) if slot.enabled => slot.plugin.invoke(id),
+            _ => Vec::new(),
+        }
     }
 
     /// Name + enabled state for every plugin (for the management view).

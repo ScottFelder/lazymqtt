@@ -47,7 +47,7 @@ plugin/      In-process plugin API + host + built-in plugins.
   mod.rs       Plugin trait, PluginHost (dispatch, enable/disable, inspect).
   api.rs       PluginEvent / PluginAction / Annotation / Inspector* types.
   config.rs    per-plugin enable/disable, persisted under plugins/.
-  builtin/     bundled plugins (json-marker, json-view, topic-alerts).
+  builtin/     bundled plugins (json-marker, json-view, topic-alerts, topic-recorder).
 ```
 
 ### Data flow
@@ -69,8 +69,10 @@ command. Plugins never touch `App` directly — only events in, actions out.
 ### The render loop (main.rs)
 
 Each iteration: drain MQTT events (dispatching Connected/Disconnected to
-plugins) → dispatch a plugin `Tick` about once a second → `terminal.draw` →
-poll input for 50ms → handle key. On quit, dispatch `Shutdown`. The 50ms poll
+plugins) → dispatch a plugin `Tick` about once a second and a `FrameTick` about
+every 100ms → `terminal.draw` → poll input for 50ms → handle key. On quit,
+dispatch `Shutdown`. `Tick` is for slow work (alerts' silence counter assumes
+1 tick ≈ 1s); `FrameTick` is for time-sensitive work like replay pacing. The 50ms poll
 keeps live messages flowing while staying responsive. Do not block anywhere in
 this loop — plugin dispatch is synchronous here, so plugins must be fast.
 
@@ -85,9 +87,14 @@ this loop — plugin dispatch is synchronous here, so plugins must be fast.
   string and the help text.
 - **Broker commands go through a registry**: `Command` + `BROKER_COMMANDS` +
   `App::run_command` (app.rs) are the single source of truth. A shortcut key in
-  `broker_keys` and the `m` command menu both call `run_command`, and the menu
-  renders from `BROKER_COMMANDS`. Add new broker commands there, not as bespoke
-  key arms.
+  `broker_keys` and the `m` command menu both call `run_command`. Add new broker
+  commands there, not as bespoke key arms. The `m` menu (`open_command_menu`)
+  builds a `Vec<MenuItem>` fresh each open: the core `BROKER_COMMANDS` plus each
+  enabled plugin's `commands()`, so plugin labels reflect live state. Enter
+  routes by `MenuAction` — `Core(Command)` → `run_command`, `Plugin { plugin, id }`
+  → `invoke_plugin_command` (which calls `PluginHost::invoke` and applies the
+  returned actions). Plugins add menu entries via the `commands`/`invoke` trait
+  methods, not by editing the menu.
 - **ui.rs never mutates state**; events.rs never renders. Preserve this split.
 - **Persistence is explicit**: after any change to `config.connections` call
   `app.config.save()`. There is no autosave. Plugin enable/disable persists via
@@ -129,6 +136,9 @@ only what it needs:
   (annotate a message, publish, (un)subscribe, show a status).
 - `inspect(&InspectMessage) -> Option<InspectorView>` — supply an alternative
   Payload rendering (e.g. pretty JSON); the raw view always stays available.
+- `commands(&self) -> Vec<PluginCommand>` / `invoke(&mut self, id) -> Vec<PluginAction>`
+  — contribute entries to the `m` command menu and handle them. Labels are
+  computed in `commands()` so they can reflect state ("Stop recording (N msgs)").
 
 Keep the boundary UI-agnostic: events carry owned data, actions are the only way
 to affect the app, and annotations attach to a message by id. Execution is
@@ -142,6 +152,16 @@ the single-binary, small-dependency goal.
 reused by the in-app editor reached with `A`). `PluginEvent::Connected` carries
 the connection id so the plugin loads that connection's rules; editing while
 connected re-dispatches `Connected` to reload live.
+
+`topic-recorder` is command-driven (no keybind — all via the `m` menu). It
+records the active connection's `MessageReceived` events to
+`plugins/recordings/<connection-id>-<timestamp>.jsonl` (one `RecordedMessage` per
+line with a relative `offset_ms`) and replays the newest recording for the
+active connection on `FrameTick`, emitting `PluginAction::Publish` for each
+message whose offset has arrived (`drain_due`). It rewrites topics under a
+`replay/` prefix by default and skips recording while replaying, so it never
+feeds on its own echoes. `Connected`/`Disconnected` reset record+replay state so
+recordings never span connections.
 
 ## Security note
 

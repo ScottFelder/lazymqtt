@@ -60,6 +60,22 @@ pub const BROKER_COMMANDS: &[(Command, &str, &str)] = &[
     (Command::Quit, "^q", "Quit"),
 ];
 
+/// What a command-menu row does when chosen.
+#[derive(Clone, Copy)]
+pub enum MenuAction {
+    Core(Command),
+    Plugin { plugin: usize, id: &'static str },
+}
+
+/// One row of the command menu (built fresh each open so plugin labels reflect
+/// current state).
+pub struct MenuItem {
+    pub key: String,   // shortcut label or plugin glyph
+    pub label: String, // what the command does
+    pub note: String,  // dim suffix (plugin name), empty for core commands
+    pub action: MenuAction,
+}
+
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub enum Focus {
     Tree,
@@ -344,10 +360,11 @@ pub struct App {
     // stable message id (collision-free, unlike the old millisecond timestamp).
     pub expanded_history: HashSet<u64>,
 
-    pub sub_input: String,       // buffer for the subscribe prompt
-    pub clear_topic: String,     // topic awaiting retained-message clear confirmation
-    pub plugins_selected: usize, // cursor in the Plugins management screen
-    pub menu_selected: usize,    // cursor in the command menu
+    pub sub_input: String,         // buffer for the subscribe prompt
+    pub clear_topic: String,       // topic awaiting retained-message clear confirmation
+    pub plugins_selected: usize,   // cursor in the Plugins management screen
+    pub menu_selected: usize,      // cursor in the command menu
+    pub menu_items: Vec<MenuItem>, // command-menu rows, rebuilt each open
 
     // Alert-rules editor (per connection). `alert_rules` is the working copy for
     // the connection identified by `alert_edit_conn` (name shown via
@@ -396,6 +413,7 @@ impl App {
             clear_topic: String::new(),
             plugins_selected: 0,
             menu_selected: 0,
+            menu_items: Vec::new(),
             alert_rules: Vec::new(),
             alerts_selected: 0,
             alert_form: AlertForm::default(),
@@ -495,6 +513,43 @@ impl App {
         let rows = self.tree.rows(&self.expanded);
         rows.get(self.tree_selected.min(rows.len().saturating_sub(1)))
             .map(|r| r.path.clone())
+    }
+
+    /// Build the command menu (core commands + enabled plugins' commands) and
+    /// open it.
+    pub fn open_command_menu(&mut self) {
+        let mut items: Vec<MenuItem> = BROKER_COMMANDS
+            .iter()
+            .map(|(cmd, key, desc)| MenuItem {
+                key: key.to_string(),
+                label: desc.to_string(),
+                note: String::new(),
+                action: MenuAction::Core(*cmd),
+            })
+            .collect();
+        for (plugin, cmd) in self.plugins.commands() {
+            let note = self
+                .plugins
+                .metadata()
+                .get(plugin)
+                .map(|m| m.name.to_string())
+                .unwrap_or_default();
+            items.push(MenuItem {
+                key: cmd.glyph.to_string(),
+                label: cmd.label,
+                note,
+                action: MenuAction::Plugin { plugin, id: cmd.id },
+            });
+        }
+        self.menu_items = items;
+        self.menu_selected = 0;
+        self.screen = Screen::CommandMenu;
+    }
+
+    /// Invoke a plugin command from the menu and apply its actions.
+    pub fn invoke_plugin_command(&mut self, plugin: usize, id: &str) {
+        let actions = self.plugins.invoke(plugin, id);
+        self.apply_plugin_actions(actions);
     }
 
     /// Run a broker command — the shared entry point for both its shortcut key
