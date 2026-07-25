@@ -1,5 +1,6 @@
 use crate::app::{
     AlertForm, App, DetailKind, DetailLine, Focus, PaneFold, PublishBuffer, Screen, Status,
+    BROKER_COMMANDS,
 };
 use crate::plugin::{InspectorStyle, Severity};
 use ratatui::{
@@ -41,6 +42,10 @@ pub fn draw(f: &mut Frame, app: &App) {
         Screen::Plugins => draw_plugins(f, app, chunks[0]),
         Screen::AlertRules => draw_alert_rules(f, app, chunks[0]),
         Screen::AlertRuleForm => draw_alert_rule_form(f, app, chunks[0]),
+        Screen::CommandMenu => {
+            draw_broker(f, app, chunks[0]);
+            draw_command_menu(f, app, chunks[0]);
+        }
         Screen::Help => draw_help(f, app, chunks[0]),
     }
 
@@ -780,6 +785,41 @@ fn draw_plugins(f: &mut Frame, app: &App, area: Rect) {
     f.render_stateful_widget(list, area, &mut state);
 }
 
+fn draw_command_menu(f: &mut Frame, app: &App, area: Rect) {
+    let popup = center_rect(area, 62, 60);
+    f.render_widget(Clear, popup);
+
+    let items: Vec<ListItem> = BROKER_COMMANDS
+        .iter()
+        .map(|(_, key, desc)| {
+            ListItem::new(Line::from(vec![
+                Span::styled(
+                    format!(" {:<5}", key),
+                    Style::default().fg(ACCENT).add_modifier(Modifier::BOLD),
+                ),
+                Span::styled(desc.to_string(), Style::default().fg(Color::White)),
+            ]))
+        })
+        .collect();
+
+    let list = List::new(items)
+        .block(title_block("Commands"))
+        .highlight_style(
+            Style::default()
+                .bg(ACCENT)
+                .fg(Color::Black)
+                .add_modifier(Modifier::BOLD),
+        )
+        .highlight_symbol("▶ ");
+
+    let mut state = ListState::default();
+    state.select(Some(
+        app.menu_selected
+            .min(BROKER_COMMANDS.len().saturating_sub(1)),
+    ));
+    f.render_stateful_widget(list, popup, &mut state);
+}
+
 fn draw_help(f: &mut Frame, app: &App, area: Rect) {
     let mut text = vec![
         Line::from(Span::styled(
@@ -797,6 +837,7 @@ fn draw_help(f: &mut Frame, app: &App, area: Rect) {
         Line::from("  Enter        save            ·   Esc    cancel"),
         Line::from(""),
         Line::from("Broker screen:"),
+        Line::from("  m            command menu (all commands below, scroll + Enter)"),
         Line::from("  ↑/↓ or j/k   move in tree   ·   Enter    expand/collapse"),
         Line::from("  →            expand         ·   ←        collapse"),
         Line::from("  Tab          cycle panes"),
@@ -863,17 +904,16 @@ fn draw_statusbar(f: &mut Frame, app: &App, area: Rect) {
         Screen::Connections => "n:new e:edit d:del Enter:connect A:alerts P:plugins ?:help q:quit",
         Screen::ConnectionForm => "Tab:field Enter:save Esc:cancel",
         Screen::Broker if app.focus == Focus::Payload => {
-            "hjkl:move v:select y:yank i:view z:fold-pane 1:topics 3:history p:publish ?:help"
+            "hjkl:move v:select y:yank i:view z:fold  m:menu  1:topics 3:history"
         }
         Screen::Broker if app.focus == Focus::History => {
-            "hjkl:move v:select y:yank Enter:expand-entry z:fold-pane 2:payload p:publish ?:help"
+            "hjkl:move v:select y:yank Enter:expand z:fold  m:menu  2:payload"
         }
-        Screen::Broker => {
-            "j/k:move Enter:expand 2:payload 3:history s:sub u:unsub p:pub r:clr-retain A:alerts Esc:disconnect"
-        }
+        Screen::Broker => "j/k:move Enter:expand 1/2/3:panes  m:menu  ?:help Esc:disconnect",
         Screen::Publish => "Tab:field Enter:publish Esc:cancel",
         Screen::Subscribe => "Enter:subscribe Esc:cancel",
         Screen::ClearRetained => "y/Enter:clear retained  n/Esc:cancel",
+        Screen::CommandMenu => "j/k:move Enter:run Esc:close",
         Screen::Plugins => "j/k:move space/Enter:toggle Esc:back",
         Screen::AlertRules => "j/k:move a:add e:edit d:delete Esc:back",
         Screen::AlertRuleForm => "Tab:field space:change Enter:save Esc:cancel",

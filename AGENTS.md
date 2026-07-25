@@ -83,6 +83,11 @@ this loop — plugin dispatch is synchronous here, so plugins must be fast.
   enum (app.rs), the render dispatch in `ui::draw`, a `draw_*` function, and a
   `*_keys` handler routed from `events::handle_key` — plus the status-bar hint
   string and the help text.
+- **Broker commands go through a registry**: `Command` + `BROKER_COMMANDS` +
+  `App::run_command` (app.rs) are the single source of truth. A shortcut key in
+  `broker_keys` and the `m` command menu both call `run_command`, and the menu
+  renders from `BROKER_COMMANDS`. Add new broker commands there, not as bespoke
+  key arms.
 - **ui.rs never mutates state**; events.rs never renders. Preserve this split.
 - **Persistence is explicit**: after any change to `config.connections` call
   `app.config.save()`. There is no autosave. Plugin enable/disable persists via
