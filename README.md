@@ -20,6 +20,7 @@ A fast, terminal-UI MQTT client written in Rust — inspired by [MQTT Explorer](
 - **Publish** — send messages to any topic with QoS 0/1/2 and an optional retain flag.
 - **Clear retained messages** — drop a broker's retained message on the selected topic (with confirmation).
 - **Copy & paste** — keyboard text selection in the Payload/History panes yanks to the system clipboard; paste into any input field.
+- **Theming** — pick a built-in preset (Default, Dracula, Nord, Gruvbox Dark, Solarized Dark) or set each color yourself, with live preview; saved to your config.
 - **Plugins** — an in-process plugin system observes the message stream and annotates, re-renders, or acts on it. Built-ins: a JSON-validity marker, a JSON pretty-print view, per-connection topic alerts, and a traffic recorder/replayer. Enable/disable per plugin (persisted).
 - **Fast** — async `rumqttc` event loop feeding a non-blocking `ratatui` render loop; release build is LTO-optimized and stripped.
 
@@ -35,9 +36,10 @@ cargo test           # unit tests
 
 Config lives in `~/.config/lazymqtt/` on both macOS and Linux (or
 `$XDG_CONFIG_HOME/lazymqtt/` if that's set) — `connections.json` for broker
-profiles and `plugins/` for plugin state. On first run, config from the old
-macOS location (`~/Library/Application Support/dev.lazymqtt.lazymqtt/`) is moved
-here automatically.
+profiles, `theme.json` for colors, and `plugins/` for plugin state. On first
+run, config from the old macOS location
+(`~/Library/Application Support/dev.lazymqtt.lazymqtt/`) is moved here
+automatically.
 
 Each connection uses a unique client id at runtime (`<your-id>-<random>`) so two
 instances (or a leftover) never collide on the broker.
@@ -70,7 +72,7 @@ instances (or a leftover) never collide on the broker.
 | `p` · `r` | publish · clear retained (selected) |
 | `x` · `c` | clear selected topic (from view) · clear tree |
 | `A` · `R` | alert rules · recordings (replay/edit/rename/delete) |
-| `P` · `?` | plugins · help |
+| `T` · `P` · `?` | theme · plugins · help |
 | `Esc` · `Ctrl-q` | disconnect · quit |
 
 **Broker — Payload (`2`) / History (`3`) panes**
@@ -157,6 +159,21 @@ used. JSON numbers and numeric strings (`"85"`) both work. Severity is `warn`
 See `FEATURES.md` for the plugin roadmap (schema validation, analytics,
 external-process/WASM loading, …).
 
+## Theming
+
+Open the theme editor with `T` (or the "Theme" entry in the `m` menu). The top
+of the list is a set of built-in presets — **Default**, **Dracula**, **Nord**,
+**Gruvbox Dark**, **Solarized Dark** — and below them is every color role the UI
+uses (accent, dim, text, the severity colors, the JSON syntax colors, the status
+bar background, …), each with a live swatch.
+
+- `Enter` on a preset applies it; `Enter` (or `e`) on a color role edits it —
+  type a color name (`cyan`, `red`, `default`, …) or a `#rrggbb` hex value.
+- Changes preview live across the whole app; press `s` to save.
+
+Your theme is stored at `~/.config/lazymqtt/theme.json` as a `role → color` map,
+so it's hand-editable too. With no file, the Default theme is used.
+
 ## Quick test
 
 ```bash
@@ -172,6 +189,7 @@ src/
   app.rs       application state (App, Screen/Focus/PaneFold, DetailLine)
   config.rs    connection/subscription persistence
   paths.rs     config dir resolution (~/.config/lazymqtt) + legacy migration
+  theme.rs     color theme model, presets, and theme.json persistence
   mqtt.rs      async MQTT client task + event/command channels
   tree.rs      hierarchical topic tree
   ui.rs        ratatui rendering (one draw_* fn per screen)
