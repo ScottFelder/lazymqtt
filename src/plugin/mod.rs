@@ -19,12 +19,18 @@ pub mod alerts_rules;
 pub mod api;
 mod builtin;
 mod config;
+pub mod recordings;
 
 pub use alerts_rules::{AlertCondition, AlertRule, AlertSeverity};
 pub use api::{
     Annotation, InspectMessage, InspectorStyle, InspectorView, PluginAction, PluginCommand,
     PluginContext, PluginEvent, PluginMetadata, Severity,
 };
+pub use recordings::Recording;
+
+/// Plugin name of the built-in record/replay plugin (the recordings picker
+/// hands chosen recordings to it via `PluginHost::use_item`).
+pub const RECORDER: &str = "topic-recorder";
 
 use config::PluginConfig;
 use directories::ProjectDirs;
@@ -38,6 +44,25 @@ pub fn load_alert_rules(connection_id: &str) -> Vec<AlertRule> {
 /// Persist a connection's alert rules to the plugin config dir.
 pub fn save_alert_rules(connection_id: &str, rules: &[AlertRule]) -> anyhow::Result<()> {
     alerts_rules::save(&plugin_config_dir(), connection_id, rules)
+}
+
+/// A connection's recordings, newest first.
+pub fn list_recordings(connection_id: &str) -> Vec<Recording> {
+    recordings::list(&plugin_config_dir(), connection_id)
+}
+
+/// Rename a connection's recording (identified by its current label).
+pub fn rename_recording(
+    connection_id: &str,
+    old_label: &str,
+    new_label: &str,
+) -> std::io::Result<()> {
+    recordings::rename(&plugin_config_dir(), connection_id, old_label, new_label)
+}
+
+/// Delete a recording by path.
+pub fn delete_recording(path: &std::path::Path) -> std::io::Result<()> {
+    recordings::delete(path)
 }
 
 pub trait Plugin {
@@ -78,6 +103,13 @@ pub trait Plugin {
     /// `invoke`, so a plugin whose option only cycles one way needs no override.
     fn adjust(&mut self, id: &str, _forward: bool) -> Vec<PluginAction> {
         self.invoke(id)
+    }
+
+    /// Act on a named item chosen from an app-level management screen (e.g. the
+    /// recordings picker telling the recorder which recording to replay).
+    /// Default: ignore — most plugins have no picker.
+    fn use_item(&mut self, _name: &str) -> Vec<PluginAction> {
+        Vec::new()
     }
 }
 
@@ -184,6 +216,27 @@ impl PluginHost {
         match self.slots.get_mut(index) {
             Some(slot) if slot.enabled => slot.plugin.adjust(id, forward),
             _ => Vec::new(),
+        }
+    }
+
+    /// Whether the enabled plugin named `name` exists (used to gate features
+    /// that need a specific plugin, e.g. replaying from the recordings picker).
+    pub fn is_enabled(&self, name: &str) -> bool {
+        self.slots
+            .iter()
+            .any(|s| s.enabled && s.plugin.metadata().name == name)
+    }
+
+    /// Hand a named item to the enabled plugin `name` (see `Plugin::use_item`),
+    /// returning its actions. No-op if the plugin isn't enabled.
+    pub fn use_item(&mut self, name: &str, item: &str) -> Vec<PluginAction> {
+        match self
+            .slots
+            .iter_mut()
+            .find(|s| s.enabled && s.plugin.metadata().name == name)
+        {
+            Some(slot) => slot.plugin.use_item(item),
+            None => Vec::new(),
         }
     }
 

@@ -63,6 +63,7 @@ instances (or a leftover) never collide on the broker.
 | `s` · `u` | subscribe · unsubscribe (selected) |
 | `p` · `r` | publish · clear retained (selected) |
 | `x` · `c` | clear selected topic (from view) · clear tree |
+| `A` · `R` | alert rules · recordings (replay/rename/delete) |
 | `P` · `?` | plugins · help |
 | `Esc` · `Ctrl-q` | disconnect · quit |
 
@@ -110,6 +111,11 @@ a relative `offset_ms`); **Replay newest** plays back the latest recording for
 the active connection. By default replay republishes under a `replay/` topic
 prefix so it never clobbers live topics, and recording pauses during replay so
 the plugin doesn't capture its own echoes.
+
+To pick a specific recording, open the **recordings picker** with `R` (or the
+"Recordings" command in the `m` menu). It lists the active connection's
+recordings, newest first, with their message counts: `Enter` replays the
+selected one, `r` renames it (in place), and `d` deletes it.
 
 Alert rules are **per connection** and edited in-app: press `A` (from
 Connections or Broker) to open the rules editor — `a` add, `e` edit, `d` delete.

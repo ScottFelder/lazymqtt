@@ -11,7 +11,7 @@
 //! doesn't capture its own echoes.
 
 use crate::plugin::api::{PluginAction, PluginCommand, PluginContext, PluginEvent, PluginMetadata};
-use crate::plugin::Plugin;
+use crate::plugin::{recordings, Plugin};
 use serde::{Deserialize, Serialize};
 use std::fs::{self, File};
 use std::io::{BufWriter, Write};
@@ -45,6 +45,9 @@ pub struct Recorder {
     record_name: String,
     // replay
     replay: Option<Replay>,
+    /// Which recording to replay next (by label). `None` = newest. Chosen from
+    /// the app's recordings picker; falls back to newest if it no longer exists.
+    selected: Option<String>,
     loop_replay: bool,
     prefix_rewrite: bool,
     speed: f64,
@@ -60,6 +63,7 @@ impl Default for Recorder {
             count: 0,
             record_name: String::new(),
             replay: None,
+            selected: None,
             loop_replay: false,
             prefix_rewrite: true,
             speed: 1.0,
@@ -158,18 +162,28 @@ impl Plugin for Recorder {
         vec![PluginAction::Status(status)]
     }
 
+    fn use_item(&mut self, name: &str) -> Vec<PluginAction> {
+        // The recordings picker chose a recording to replay now: select it and
+        // (re)start replay from the top.
+        self.selected = Some(name.to_string());
+        self.replay = None;
+        vec![PluginAction::Status(self.start_replay())]
+    }
+
     fn on_event(&mut self, event: &PluginEvent) -> Vec<PluginAction> {
         match event {
             PluginEvent::Connected { connection } => {
                 self.active = Some(connection.clone());
                 self.stop_record();
                 self.replay = None;
+                self.selected = None;
                 Vec::new()
             }
             PluginEvent::Disconnected(_) | PluginEvent::Shutdown => {
                 self.active = None;
                 self.stop_record();
                 self.replay = None;
+                self.selected = None;
                 Vec::new()
             }
             // Record only while not replaying, to avoid capturing our own echoes.
@@ -249,10 +263,23 @@ impl Recorder {
             self.replay = None;
             return "replay stopped".to_string();
         }
+        self.start_replay()
+    }
+
+    /// Start replaying the selected recording (or the newest when nothing is
+    /// selected / the selection has vanished). Returns a status message.
+    fn start_replay(&mut self) -> String {
         let Some(conn) = self.active.clone() else {
             return "connect before replaying".to_string();
         };
-        let Some(path) = newest_recording(&self.config_dir, &conn) else {
+        // Prefer the explicitly picked recording; fall back to newest.
+        let path = self
+            .selected
+            .as_ref()
+            .map(|label| recordings::path_for(&self.config_dir, &conn, label))
+            .filter(|p| p.exists())
+            .or_else(|| recordings::newest(&self.config_dir, &conn));
+        let Some(path) = path else {
             return "no recording for this connection".to_string();
         };
         let msgs = load_recording(&path);
@@ -344,21 +371,6 @@ fn drain_due(msgs: &[RecordedMessage], next: usize, elapsed_ms: f64) -> usize {
         i += 1;
     }
     i
-}
-
-fn newest_recording(config_dir: &Path, conn: &str) -> Option<PathBuf> {
-    let prefix = format!("{conn}-");
-    fs::read_dir(config_dir.join("recordings"))
-        .ok()?
-        .flatten()
-        .map(|e| e.path())
-        .filter(|p| {
-            p.file_name()
-                .and_then(|n| n.to_str())
-                .map(|n| n.starts_with(&prefix) && n.ends_with(".jsonl"))
-                .unwrap_or(false)
-        })
-        .max_by(|a, b| a.file_name().cmp(&b.file_name()))
 }
 
 fn load_recording(path: &Path) -> Vec<RecordedMessage> {
@@ -461,6 +473,19 @@ mod tests {
         assert!(r.writer.is_none());
         assert_eq!(
             r.invoke("replay"),
+            vec![PluginAction::Status("connect before replaying".into())]
+        );
+        assert!(r.replay.is_none());
+    }
+
+    #[test]
+    fn use_item_selects_recording_then_needs_connection() {
+        let mut r = Recorder::default(); // active = None
+        let actions = r.use_item("morning-run");
+        assert_eq!(r.selected.as_deref(), Some("morning-run"));
+        // With no connection, replay can't start but the pick is remembered.
+        assert_eq!(
+            actions,
             vec![PluginAction::Status("connect before replaying".into())]
         );
         assert!(r.replay.is_none());

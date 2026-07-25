@@ -15,6 +15,7 @@ pub fn handle_key(app: &mut App, key: KeyEvent) {
         Screen::Plugins => plugins_keys(app, key),
         Screen::AlertRules => alert_rules_keys(app, key),
         Screen::AlertRuleForm => alert_form_keys(app, key),
+        Screen::Recordings => recordings_keys(app, key),
         Screen::CommandMenu => command_menu_keys(app, key),
         Screen::Help => {
             app.screen = if app.handle.is_some() {
@@ -38,6 +39,11 @@ pub fn handle_paste(app: &mut App, data: String) {
             _ => {}
         },
         Screen::Subscribe => app.sub_input.push_str(&strip_newlines(&data)),
+        Screen::Recordings => {
+            if let Some(buf) = app.recording_rename.as_mut() {
+                buf.push_str(&strip_newlines(&data));
+            }
+        }
         Screen::ConnectionForm => {
             let is_port = app.form.field == 2;
             if let Some(s) = field_mut(&mut app.form) {
@@ -343,6 +349,7 @@ fn broker_keys(app: &mut App, key: KeyEvent) {
         KeyCode::Char('i') => app.cycle_payload_view(),
         KeyCode::Char('P') => app.run_command(Command::Plugins),
         KeyCode::Char('A') => app.run_command(Command::AlertRules),
+        KeyCode::Char('R') => app.run_command(Command::Recordings),
         _ => {}
     }
 }
@@ -447,6 +454,51 @@ fn alert_rules_keys(app: &mut App, key: KeyEvent) {
                 app.persist_alert_rules();
             }
         }
+        _ => {}
+    }
+}
+
+fn recordings_keys(app: &mut App, key: KeyEvent) {
+    // Rename mode: the selected recording's label is being edited in place.
+    if app.recording_rename.is_some() {
+        match key.code {
+            KeyCode::Esc => app.recording_rename = None,
+            KeyCode::Enter => app.apply_recording_rename(),
+            KeyCode::Backspace => {
+                if let Some(buf) = app.recording_rename.as_mut() {
+                    buf.pop();
+                }
+            }
+            KeyCode::Char(c) => {
+                if let Some(buf) = app.recording_rename.as_mut() {
+                    buf.push(c);
+                }
+            }
+            _ => {}
+        }
+        return;
+    }
+
+    let len = app.recordings.len();
+    match key.code {
+        KeyCode::Esc | KeyCode::Char('q') => {
+            app.screen = if app.handle.is_some() {
+                Screen::Broker
+            } else {
+                Screen::Connections
+            };
+        }
+        KeyCode::Char('j') | KeyCode::Down => {
+            if len > 0 {
+                app.recordings_selected = (app.recordings_selected + 1).min(len - 1);
+            }
+        }
+        KeyCode::Char('k') | KeyCode::Up => {
+            app.recordings_selected = app.recordings_selected.saturating_sub(1);
+        }
+        KeyCode::Enter => app.replay_selected_recording(),
+        KeyCode::Char('r') => app.begin_recording_rename(),
+        KeyCode::Char('d') => app.delete_selected_recording(),
         _ => {}
     }
 }

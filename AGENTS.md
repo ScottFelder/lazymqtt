@@ -162,15 +162,27 @@ reused by the in-app editor reached with `A`). `PluginEvent::Connected` carries
 the connection id so the plugin loads that connection's rules; editing while
 connected re-dispatches `Connected` to reload live.
 
-`topic-recorder` is command-driven (no keybind — all via the `m` menu). It
-records the active connection's `MessageReceived` events to
-`plugins/recordings/<connection-id>-<timestamp>.jsonl` (one `RecordedMessage` per
-line with a relative `offset_ms`) and replays the newest recording for the
-active connection on `FrameTick`, emitting `PluginAction::Publish` for each
-message whose offset has arrived (`drain_due`). It rewrites topics under a
-`replay/` prefix by default and skips recording while replaying, so it never
-feeds on its own echoes. `Connected`/`Disconnected` reset record+replay state so
+`topic-recorder` records the active connection's `MessageReceived` events to
+`plugins/recordings/<connection-id>-<label>.jsonl` (one `RecordedMessage` per
+line with a relative `offset_ms`) and replays a recording for the active
+connection on `FrameTick`, emitting `PluginAction::Publish` for each message
+whose offset has arrived (`drain_due`). It rewrites topics under a `replay/`
+prefix by default and skips recording while replaying, so it never feeds on its
+own echoes. `Connected`/`Disconnected` reset record+replay+selection state so
 recordings never span connections.
+
+Recording file management is shared in `plugin/recordings.rs` (list / rename /
+delete / newest / `path_for`), mirroring `alerts_rules`. The app-level
+recordings picker (`Screen::Recordings`, opened with `R` or the "Recordings"
+command) lists a connection's recordings and renames/deletes them **directly**
+via `crate::plugin::{list,rename,delete}_recording` — the plugin isn't in that
+loop. The `<connection-id>-` filename prefix scopes recordings per connection
+and is preserved across renames; only the `label` suffix changes. Picking a
+recording to **replay** is the one app→recorder call: `PluginHost::use_item(RECORDER, label)`
+→ `Plugin::use_item`, which sets the recorder's `selected` recording and starts
+replay (falling back to newest if the selection has since vanished). `use_item`
+is the generic "act on a named item chosen from an app management screen" hook;
+most plugins don't implement it.
 
 ## Security note
 

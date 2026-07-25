@@ -41,6 +41,7 @@ pub fn draw(f: &mut Frame, app: &App) {
         Screen::Plugins => draw_plugins(f, app, chunks[0]),
         Screen::AlertRules => draw_alert_rules(f, app, chunks[0]),
         Screen::AlertRuleForm => draw_alert_rule_form(f, app, chunks[0]),
+        Screen::Recordings => draw_recordings(f, app, chunks[0]),
         Screen::CommandMenu => {
             draw_broker(f, app, chunks[0]);
             draw_command_menu(f, app, chunks[0]);
@@ -677,6 +678,62 @@ fn draw_alert_rules(f: &mut Frame, app: &App, area: Rect) {
     }
 }
 
+fn draw_recordings(f: &mut Frame, app: &App, area: Rect) {
+    let items: Vec<ListItem> = app
+        .recordings
+        .iter()
+        .enumerate()
+        .map(|(i, rec)| {
+            // While renaming the selected row, show the live edit buffer instead
+            // of the stored label.
+            let editing = app
+                .recording_rename
+                .as_ref()
+                .filter(|_| i == app.recordings_selected);
+            let (label, label_style) = match editing {
+                Some(buf) => (
+                    format!("{buf}_"),
+                    Style::default().fg(ACCENT).add_modifier(Modifier::BOLD),
+                ),
+                None => (rec.label.clone(), Style::default().fg(Color::White)),
+            };
+            let count = if rec.messages == 1 {
+                "1 msg".to_string()
+            } else {
+                format!("{} msgs", rec.messages)
+            };
+            ListItem::new(Line::from(vec![
+                Span::styled(format!("{label:<40}"), label_style),
+                Span::styled(count, Style::default().fg(DIM)),
+            ]))
+        })
+        .collect();
+
+    let title = format!("Recordings — {}", app.recordings_conn_name);
+    let list = List::new(items)
+        .block(title_block(&title))
+        .highlight_style(
+            Style::default()
+                .bg(ACCENT)
+                .fg(Color::Black)
+                .add_modifier(Modifier::BOLD),
+        )
+        .highlight_symbol("▶ ");
+
+    let mut state = ListState::default();
+    if !app.recordings.is_empty() {
+        state.select(Some(app.recordings_selected.min(app.recordings.len() - 1)));
+    }
+    f.render_stateful_widget(list, area, &mut state);
+
+    if app.recordings.is_empty() {
+        let hint = Paragraph::new("No recordings for this connection. Record one from the m menu.")
+            .style(Style::default().fg(DIM))
+            .alignment(Alignment::Center);
+        f.render_widget(hint, center_rect(area, 70, 1));
+    }
+}
+
 fn draw_alert_rule_form(f: &mut Frame, app: &App, area: Rect) {
     let form = &app.alert_form;
     let title = if form.editing_index.is_some() {
@@ -857,6 +914,7 @@ fn draw_help(f: &mut Frame, app: &App, area: Rect) {
         Line::from("  p            publish        ·   c        clear tree"),
         Line::from("  x            clear selected topic (from view) ·  r  clear retained msg"),
         Line::from("  A            edit alert rules (per connection) · P  plugins"),
+        Line::from("  R            recordings — replay, rename, delete"),
         Line::from("  Esc          disconnect     ·   ?        this help"),
         Line::from(""),
         Line::from("Payload & History panes (Tab or 2/3 to focus):"),
@@ -926,6 +984,10 @@ fn draw_statusbar(f: &mut Frame, app: &App, area: Rect) {
         Screen::CommandMenu => "j/k:move ←/→:cycle option Enter:run Esc:close",
         Screen::Plugins => "j/k:move space/Enter:toggle Esc:back",
         Screen::AlertRules => "j/k:move a:add e:edit d:delete Esc:back",
+        Screen::Recordings if app.recording_rename.is_some() => {
+            "type new name  Enter:save  Esc:cancel"
+        }
+        Screen::Recordings => "j/k:move Enter:replay r:rename d:delete Esc:back",
         Screen::AlertRuleForm => "Tab:field space:change Enter:save Esc:cancel",
         Screen::Help => "any key: back",
     };
