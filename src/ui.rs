@@ -735,11 +735,11 @@ fn draw_statusbar(f: &mut Frame, app: &App, area: Rect) {
         Status::Idle => ("● idle".to_string(), DIM),
         Status::Connecting => ("● connecting…".to_string(), Color::Yellow),
         Status::Connected => {
-            let name = app
+            let host = app
                 .active_conn()
-                .map(|c| c.name.clone())
+                .map(|c| format!("{}:{}", c.host, c.port))
                 .unwrap_or_default();
-            (format!("● connected: {}", name), Color::Green)
+            (format!("● connected: {}", host), Color::Green)
         }
         Status::Disconnected(e) => (format!("● disconnected: {}", e), Color::Red),
     };
