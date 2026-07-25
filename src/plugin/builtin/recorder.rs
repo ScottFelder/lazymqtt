@@ -85,33 +85,33 @@ impl Plugin for Recorder {
         let recording = self.writer.is_some();
         let replaying = self.replay.is_some();
         vec![
-            PluginCommand {
-                id: "record",
-                glyph: if recording { "■" } else { "●" },
-                label: if recording {
+            PluginCommand::action(
+                "record",
+                if recording { "■" } else { "●" },
+                if recording {
                     format!("Stop recording ({} msgs)", self.count)
                 } else {
                     "Start recording".to_string()
                 },
-            },
-            PluginCommand {
-                id: "replay",
-                glyph: if replaying { "■" } else { "▶" },
-                label: if replaying {
+            ),
+            PluginCommand::action(
+                "replay",
+                if replaying { "■" } else { "▶" },
+                if replaying {
                     "Stop replay".to_string()
                 } else {
                     "Replay newest recording".to_string()
                 },
-            },
-            PluginCommand {
-                id: "loop",
-                glyph: "↻",
-                label: format!("Replay loop: {}", on_off(self.loop_replay)),
-            },
-            PluginCommand {
-                id: "prefix",
-                glyph: "#",
-                label: format!(
+            ),
+            PluginCommand::option(
+                "loop",
+                "↻",
+                format!("Replay loop: {}", on_off(self.loop_replay)),
+            ),
+            PluginCommand::option(
+                "prefix",
+                "#",
+                format!(
                     "Replay prefix: {}",
                     if self.prefix_rewrite {
                         "replay/"
@@ -119,16 +119,21 @@ impl Plugin for Recorder {
                         "off"
                     }
                 ),
-            },
-            PluginCommand {
-                id: "speed",
-                glyph: "»",
-                label: format!("Replay speed: {}x", self.speed as u64),
-            },
+            ),
+            PluginCommand::option(
+                "speed",
+                "»",
+                format!("Replay speed: {}x", self.speed as u64),
+            ),
         ]
     }
 
     fn invoke(&mut self, id: &str) -> Vec<PluginAction> {
+        // Enter steps options forward; the one-shot commands run their action.
+        self.adjust(id, true)
+    }
+
+    fn adjust(&mut self, id: &str, forward: bool) -> Vec<PluginAction> {
         let status = match id {
             "record" => self.toggle_record(),
             "replay" => self.toggle_replay(),
@@ -145,11 +150,7 @@ impl Plugin for Recorder {
                 }
             }
             "speed" => {
-                self.speed = match self.speed as u64 {
-                    1 => 2.0,
-                    2 => 5.0,
-                    _ => 1.0,
-                };
+                self.speed = cycle(&SPEEDS, self.speed, forward);
                 format!("replay speed {}x", self.speed as u64)
             }
             _ => return Vec::new(),
@@ -307,12 +308,28 @@ impl Recorder {
     }
 }
 
+/// Replay speed multipliers, cycled by the speed option.
+const SPEEDS: [f64; 3] = [1.0, 2.0, 5.0];
+
 fn on_off(b: bool) -> &'static str {
     if b {
         "on"
     } else {
         "off"
     }
+}
+
+/// Return the option after (`forward`) or before `current` in `options`,
+/// wrapping around. Falls back to the first option if `current` isn't found.
+fn cycle(options: &[f64], current: f64, forward: bool) -> f64 {
+    let n = options.len();
+    let i = options.iter().position(|&v| v == current).unwrap_or(0);
+    let next = if forward {
+        (i + 1) % n
+    } else {
+        (i + n - 1) % n
+    };
+    options[next]
 }
 
 fn timestamp() -> String {
@@ -406,6 +423,32 @@ mod tests {
             .commands()
             .iter()
             .any(|c| c.id == "speed" && c.label.contains("5x")));
+    }
+
+    #[test]
+    fn speed_cycles_both_directions_and_wraps() {
+        let mut r = Recorder::default();
+        assert_eq!(r.speed, 1.0);
+        r.adjust("speed", true); // 1 -> 2
+        r.adjust("speed", true); // 2 -> 5
+        r.adjust("speed", true); // 5 -> 1 (wrap)
+        assert_eq!(r.speed, 1.0);
+        r.adjust("speed", false); // 1 -> 5 (wrap backward)
+        assert_eq!(r.speed, 5.0);
+        r.adjust("speed", false); // 5 -> 2
+        assert_eq!(r.speed, 2.0);
+    }
+
+    #[test]
+    fn options_are_adjustable_actions_are_not() {
+        let r = Recorder::default();
+        let cmds = r.commands();
+        let by_id = |id: &str| cmds.iter().find(|c| c.id == id).unwrap().adjustable;
+        assert!(by_id("loop"));
+        assert!(by_id("prefix"));
+        assert!(by_id("speed"));
+        assert!(!by_id("record"));
+        assert!(!by_id("replay"));
     }
 
     #[test]

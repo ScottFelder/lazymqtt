@@ -93,14 +93,41 @@ pub struct PluginMetadata {
 }
 
 /// A command a plugin exposes in the `m` command menu. `label` is computed
-/// fresh each time the menu opens, so it can reflect current state (e.g.
-/// "Stop recording (12 msgs)"). `id` is the stable handle passed back to
-/// `Plugin::invoke`.
+/// fresh each time the menu is (re)built, so it can reflect current state (e.g.
+/// "Stop recording (12 msgs)" or "Replay speed: 2x"). `id` is the stable handle
+/// passed back to `Plugin::invoke`/`Plugin::adjust`.
+///
+/// `adjustable` marks a command that cycles through several options in place:
+/// the left/right (or `h`/`l`) keys call `Plugin::adjust` and the menu stays
+/// open with a refreshed label, instead of Enter running a one-shot action.
 #[derive(Debug, Clone)]
 pub struct PluginCommand {
     pub id: &'static str,
     pub label: String,
     pub glyph: &'static str,
+    pub adjustable: bool,
+}
+
+impl PluginCommand {
+    /// A one-shot command (Enter runs it and closes the menu).
+    pub fn action(id: &'static str, glyph: &'static str, label: impl Into<String>) -> Self {
+        Self {
+            id,
+            glyph,
+            label: label.into(),
+            adjustable: false,
+        }
+    }
+
+    /// An option-cycling command (left/right or `h`/`l` cycle it in place).
+    pub fn option(id: &'static str, glyph: &'static str, label: impl Into<String>) -> Self {
+        Self {
+            id,
+            glyph,
+            label: label.into(),
+            adjustable: true,
+        }
+    }
 }
 
 /// Handed to a plugin once at load time. Minimal for now; grows as the API does.
