@@ -171,18 +171,29 @@ prefix by default and skips recording while replaying, so it never feeds on its
 own echoes. `Connected`/`Disconnected` reset record+replay+selection state so
 recordings never span connections.
 
-Recording file management is shared in `plugin/recordings.rs` (list / rename /
-delete / newest / `path_for`), mirroring `alerts_rules`. The app-level
-recordings picker (`Screen::Recordings`, opened with `R` or the "Recordings"
-command) lists a connection's recordings and renames/deletes them **directly**
-via `crate::plugin::{list,rename,delete}_recording` — the plugin isn't in that
-loop. The `<connection-id>-` filename prefix scopes recordings per connection
-and is preserved across renames; only the `label` suffix changes. Picking a
-recording to **replay** is the one app→recorder call: `PluginHost::use_item(RECORDER, label)`
-→ `Plugin::use_item`, which sets the recorder's `selected` recording and starts
-replay (falling back to newest if the selection has since vanished). `use_item`
-is the generic "act on a named item chosen from an app management screen" hook;
-most plugins don't implement it.
+The recording model (`RecordedMessage`) and all file management live in
+`plugin/recordings.rs` (list / rename / delete / newest / `path_for` / `read` /
+`to_lines` / `parse_lines` / `write_label`), shared by the recorder plugin and
+the app — mirroring `alerts_rules`. The app-level recordings picker
+(`Screen::Recordings`, opened with `R` or the "Recordings" command) lists a
+connection's recordings and edits/renames/deletes them **directly** via
+`crate::plugin::{list,read,save,rename,delete}_recording*` — the plugin isn't in
+that loop. The `<connection-id>-` filename prefix scopes recordings per
+connection and is preserved across renames/edits; only the `label` suffix
+changes. Picking a recording to **replay** is the one app→recorder call:
+`PluginHost::use_item(RECORDER, label)` → `Plugin::use_item`, which sets the
+recorder's `selected` recording and starts replay (falling back to newest if the
+selection has since vanished). `use_item` is the generic "act on a named item
+chosen from an app management screen" hook; most plugins don't implement it.
+
+`e` in the picker opens a multi-line JSONL editor (`Screen::RecordingEdit`,
+state `rec_edit_*` in `App`): the recording is loaded as canonical one-line-per-
+message text, edited with a char-addressed cursor (`char_byte_idx` bridges char
+columns to the UTF-8 `String`), and saved via `save_recording_text`, which
+validates every line through `recordings::parse_lines` before writing so a bad
+edit never corrupts the file. `^S` overwrites the current recording; `^N` is
+"save as" (a filename prompt in `rec_edit_saveas`) writing a new recording and
+leaving the original intact.
 
 ## Security note
 

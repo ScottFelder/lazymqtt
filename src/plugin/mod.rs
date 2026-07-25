@@ -65,6 +65,32 @@ pub fn delete_recording(path: &std::path::Path) -> std::io::Result<()> {
     recordings::delete(path)
 }
 
+/// A recording's messages as editable text — one canonical JSON line each.
+pub fn read_recording(connection_id: &str, label: &str) -> Vec<String> {
+    let dir = plugin_config_dir();
+    recordings::to_lines(&recordings::read(&recordings::path_for(
+        &dir,
+        connection_id,
+        label,
+    )))
+}
+
+/// Validate edited recording text (one message per line) and write it to
+/// `label`. Returns a human-readable error (pointing at the offending line, or
+/// the I/O failure) rather than saving invalid content.
+pub fn save_recording_text(
+    connection_id: &str,
+    label: &str,
+    lines: &[String],
+) -> Result<(), String> {
+    let msgs = recordings::parse_lines(lines).map_err(|(i, e)| format!("line {}: {e}", i + 1))?;
+    if msgs.is_empty() {
+        return Err("recording is empty".into());
+    }
+    recordings::write_label(&plugin_config_dir(), connection_id, label, &msgs)
+        .map_err(|e| e.to_string())
+}
+
 pub trait Plugin {
     fn metadata(&self) -> PluginMetadata;
 
