@@ -29,6 +29,23 @@ impl TopicTree {
         self.root = TopicNode::default();
     }
 
+    /// Remove the node at `path` (slash-separated) and its whole subtree.
+    /// Returns true if a node was actually removed.
+    pub fn remove(&mut self, path: &str) -> bool {
+        let parts: Vec<&str> = path.split('/').collect();
+        let Some((last, parents)) = parts.split_last() else {
+            return false;
+        };
+        let mut node = &mut self.root;
+        for p in parents {
+            match node.children.get_mut(*p) {
+                Some(child) => node = child,
+                None => return false,
+            }
+        }
+        node.children.remove(*last).is_some()
+    }
+
     /// Flatten the tree into displayable rows honoring per-node expansion state.
     pub fn rows(&self, expanded: &std::collections::HashSet<String>) -> Vec<TreeRow> {
         let mut out = Vec::new();
@@ -74,5 +91,62 @@ fn walk(
         if has_children && is_expanded {
             walk(child, child_path, depth + 1, expanded, out);
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use chrono::Local;
+
+    fn msg(topic: &str) -> Message {
+        Message {
+            id: 0,
+            topic: topic.into(),
+            payload: "x".into(),
+            qos: 0,
+            retained: false,
+            time: Local::now(),
+        }
+    }
+
+    fn paths(tree: &TopicTree) -> Vec<String> {
+        let all = std::collections::HashSet::new();
+        tree.rows(&all).into_iter().map(|r| r.path).collect()
+    }
+
+    #[test]
+    fn remove_prunes_node_and_subtree() {
+        let mut tree = TopicTree::default();
+        tree.insert(msg("sensor/temp"));
+        tree.insert(msg("sensor/humidity"));
+        tree.insert(msg("status"));
+
+        // Removing a parent drops it and every descendant, leaving siblings.
+        assert!(tree.remove("sensor"));
+        assert_eq!(paths(&tree), vec!["status".to_string()]);
+    }
+
+    #[test]
+    fn remove_leaf_leaves_siblings() {
+        let mut tree = TopicTree::default();
+        tree.insert(msg("a/b"));
+        tree.insert(msg("a/c"));
+
+        // Expand the parent so the child rows are visible, then drop one leaf.
+        let mut expanded = std::collections::HashSet::new();
+        expanded.insert("a".to_string());
+        assert!(tree.remove("a/b"));
+        let visible: Vec<String> = tree.rows(&expanded).into_iter().map(|r| r.path).collect();
+        assert_eq!(visible, vec!["a".to_string(), "a/c".to_string()]);
+    }
+
+    #[test]
+    fn remove_missing_path_is_noop() {
+        let mut tree = TopicTree::default();
+        tree.insert(msg("a/b"));
+        assert!(!tree.remove("a/x"));
+        assert!(!tree.remove("nope"));
+        assert_eq!(paths(&tree), vec!["a".to_string()]);
     }
 }
