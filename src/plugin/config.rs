@@ -12,7 +12,8 @@ use std::path::{Path, PathBuf};
 
 #[derive(Debug, Default, Serialize, Deserialize)]
 pub struct PluginConfig {
-    /// plugin name -> enabled. Absent means "enabled" (opt-out model).
+    /// plugin name -> enabled. Absent means "disabled" (opt-in model): a plugin
+    /// runs only once the user explicitly turns it on.
     #[serde(default)]
     enabled: HashMap<String, bool>,
 }
@@ -35,9 +36,10 @@ impl PluginConfig {
         Ok(())
     }
 
-    /// Whether a plugin should receive events. Unknown plugins default to on.
+    /// Whether a plugin should receive events. Unknown plugins default to off —
+    /// the user must explicitly enable each plugin (opt-in).
     pub fn is_enabled(&self, name: &str) -> bool {
-        *self.enabled.get(name).unwrap_or(&true)
+        *self.enabled.get(name).unwrap_or(&false)
     }
 
     pub fn set(&mut self, name: &str, enabled: bool) {
