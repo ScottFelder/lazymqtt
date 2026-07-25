@@ -47,7 +47,7 @@ plugin/      In-process plugin API + host + built-in plugins.
   mod.rs       Plugin trait, PluginHost (dispatch, enable/disable, inspect).
   api.rs       PluginEvent / PluginAction / Annotation / Inspector* types.
   config.rs    per-plugin enable/disable, persisted under plugins/.
-  builtin/     bundled plugins (json-marker, json-view).
+  builtin/     bundled plugins (json-marker, json-view, topic-alerts).
 ```
 
 ### Data flow

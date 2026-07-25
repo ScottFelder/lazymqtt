@@ -92,10 +92,29 @@ the Plugins screen (`P`); the choice persists in `plugins/config.json`.
 Built-in plugins:
 
 - **json-marker** — flags whether each payload is valid JSON (annotation).
-- **json-view** — pretty-prints JSON payloads as an alternate Payload view (`i`).
+- **json-view** — pretty-prints JSON payloads (syntax-colored) as an alternate Payload view (`i`).
+- **topic-alerts** — raises alerts (annotations + status) from rules in `plugins/alerts.json`.
+
+`topic-alerts` reads rules from `plugins/alerts.json` (next to `connections.json`):
+
+```json
+{
+  "rules": [
+    { "topic": "factory/+/temperature", "when": "above", "value": 80, "severity": "error" },
+    { "topic": "sensors/#",             "when": "below", "value": 0, "field": "temp" },
+    { "topic": "system/heartbeat",      "when": "silent", "seconds": 30 },
+    { "topic": "config/#",              "when": "changed" }
+  ]
+}
+```
+
+`when` is `above` / `below` (with `value`), `changed`, or `silent` (with
+`seconds`). `field` optionally extracts a top-level JSON field for numeric
+comparisons; otherwise the whole payload is parsed as a number. `severity` is
+`warn` (default) or `error`. Alerts are visual only — no commands are run.
 
 See `FEATURES.md` for the plugin roadmap (schema validation, record/replay,
-topic alerts, analytics, external-process/WASM loading, …).
+analytics, external-process/WASM loading, …).
 
 ## Quick test
 

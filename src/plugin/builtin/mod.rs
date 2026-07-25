@@ -1,5 +1,6 @@
 //! Built-in plugins compiled into the binary.
 
+mod alerts;
 mod json_view;
 mod observer;
 
@@ -10,5 +11,6 @@ pub fn all() -> Vec<Box<dyn Plugin>> {
     vec![
         Box::new(observer::JsonMarker::default()),
         Box::new(json_view::JsonView),
+        Box::new(alerts::TopicAlerts::default()),
     ]
 }
