@@ -4,7 +4,12 @@ A fast, terminal-UI MQTT client written in Rust — inspired by [MQTT Explorer](
 
 ![LazyMQTT demo](assets/demo.gif)
 
-> The demo is scripted with [VHS](https://github.com/charmbracelet/vhs); regenerate it with `vhs assets/demo.tape` (see the tape header for prerequisites).
+> Core browsing, inspecting, and publishing — no plugins. The plugins have their
+> own demos [below](#plugins).
+>
+> All demos are scripted with [VHS](https://github.com/charmbracelet/vhs);
+> regenerate one with `vhs assets/<name>.tape` (see each tape header for
+> prerequisites).
 
 ## Features
 
@@ -93,12 +98,23 @@ Payload rendering — without touching connection state directly. Every plugin i
 **disabled by default**; enable the ones you want on the Plugins screen (`P`).
 The choice persists in `plugins/config.json`.
 
-Built-in plugins:
+Built-in plugins, each with its own demo:
 
-- **json-marker** — flags whether each payload is valid JSON (annotation).
-- **json-view** — pretty-prints JSON payloads (syntax-colored) as an alternate Payload view (`i`).
-- **topic-alerts** — raises alerts (annotations + status) from **per-connection** rules.
-- **topic-recorder** — records the connection's traffic to a file and replays it back to the broker, preserving timing.
+**json-marker** — flags whether each payload is valid JSON (annotation).
+
+![json-marker demo](assets/json-marker.gif)
+
+**json-view** — pretty-prints JSON payloads (syntax-colored) as an alternate Payload view (`i`).
+
+![json-view demo](assets/json-view.gif)
+
+**topic-alerts** — raises alerts (annotations + status) from **per-connection** rules, including numbers pulled from a JSON field.
+
+![topic-alerts demo](assets/topic-alerts.gif)
+
+**topic-recorder** — records the connection's traffic to a file and replays it back to the broker, preserving timing; a picker (`R`) replays/renames/deletes individual recordings.
+
+![topic-recorder demo](assets/topic-recorder.gif)
 
 Some plugins add commands to the command menu (`m`). The recorder is driven
 entirely from there: **Start/Stop recording**, **Replay newest recording**, and
