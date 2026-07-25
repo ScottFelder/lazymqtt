@@ -2,7 +2,7 @@ use crate::config::{Config, Connection};
 use crate::mqtt::{Message, MqttCommand, MqttHandle};
 use crate::plugin::{
     AlertCondition, AlertRule, AlertSeverity, Annotation, InspectMessage, InspectorStyle,
-    InspectorView, PluginAction, PluginEvent, PluginHost, Severity,
+    InspectorView, PluginAction, PluginEvent, PluginHost, Recording, Severity,
 };
 use crate::tree::TopicTree;
 use std::collections::{HashMap, HashSet};
@@ -18,6 +18,7 @@ pub enum Screen {
     Plugins,
     AlertRules,
     AlertRuleForm,
+    Recordings,
     CommandMenu,
     Help,
 }
@@ -33,6 +34,7 @@ pub enum Command {
     ClearTopic,
     ClearTree,
     AlertRules,
+    Recordings,
     Plugins,
     Help,
     Disconnect,
@@ -60,6 +62,11 @@ pub const BROKER_COMMANDS: &[(Command, &str, &str)] = &[
     ),
     (Command::ClearTree, "c", "Clear the topic tree"),
     (Command::AlertRules, "A", "Edit alert rules"),
+    (
+        Command::Recordings,
+        "R",
+        "Recordings — replay, rename, delete",
+    ),
     (Command::Plugins, "P", "Manage plugins"),
     (Command::Help, "?", "Help"),
     (Command::Disconnect, "Esc", "Disconnect"),
@@ -383,6 +390,16 @@ pub struct App {
     pub alert_form: AlertForm,
     pub alert_edit_conn: String,
     pub alert_edit_name: String,
+
+    // Recordings picker (per connection). `recordings` lists the recordings for
+    // the connection identified by `recordings_conn` (name shown via
+    // `recordings_conn_name`); `recordings_selected` is the list cursor.
+    // `recording_rename` is Some(buffer) while renaming the selected recording.
+    pub recordings: Vec<Recording>,
+    pub recordings_selected: usize,
+    pub recordings_conn: String,
+    pub recordings_conn_name: String,
+    pub recording_rename: Option<String>,
     // Which Payload-pane view is active: 0 = raw text, 1.. = plugin inspector
     // views (in plugin order). Clamped when fewer views are available.
     pub payload_view: usize,
@@ -428,6 +445,11 @@ impl App {
             alert_form: AlertForm::default(),
             alert_edit_conn: String::new(),
             alert_edit_name: String::new(),
+            recordings: Vec::new(),
+            recordings_selected: 0,
+            recordings_conn: String::new(),
+            recordings_conn_name: String::new(),
+            recording_rename: None,
             payload_view: 0,
             error: None,
             sel_cursor: (0, 0),
@@ -620,6 +642,7 @@ impl App {
                 self.reset_message_view();
             }
             Command::AlertRules => self.open_alerts_editor(),
+            Command::Recordings => self.open_recordings(),
             Command::Plugins => {
                 self.plugins_selected = 0;
                 self.screen = Screen::Plugins;
@@ -698,6 +721,98 @@ impl App {
         self.alert_edit_name = name;
         self.alerts_selected = 0;
         self.screen = Screen::AlertRules;
+    }
+
+    /// Open the recordings picker for the active connection (if connected) or the
+    /// selected one otherwise. Recordings are per connection.
+    pub fn open_recordings(&mut self) {
+        let target = if self.handle.is_some() {
+            self.active_conn().map(|c| (c.id.clone(), c.name.clone()))
+        } else {
+            self.config
+                .connections
+                .get(self.conn_selected)
+                .map(|c| (c.id.clone(), c.name.clone()))
+        };
+        let Some((id, name)) = target else {
+            self.error = Some("no connection to manage recordings for".into());
+            return;
+        };
+        self.recordings_conn = id;
+        self.recordings_conn_name = name;
+        self.recording_rename = None;
+        self.reload_recordings();
+        self.recordings_selected = 0;
+        self.screen = Screen::Recordings;
+    }
+
+    /// Re-read the recordings list for the picker's connection, keeping the
+    /// cursor in range.
+    pub fn reload_recordings(&mut self) {
+        self.recordings = crate::plugin::list_recordings(&self.recordings_conn);
+        self.recordings_selected = self
+            .recordings_selected
+            .min(self.recordings.len().saturating_sub(1));
+    }
+
+    /// The recording the picker cursor is on, if any.
+    pub fn selected_recording(&self) -> Option<&Recording> {
+        self.recordings.get(self.recordings_selected)
+    }
+
+    /// Replay the selected recording now (hands it to the recorder plugin), then
+    /// return to the broker. Requires the recorder plugin to be enabled and a
+    /// live connection.
+    pub fn replay_selected_recording(&mut self) {
+        let Some(label) = self.selected_recording().map(|r| r.label.clone()) else {
+            return;
+        };
+        if !self.plugins.is_enabled(crate::plugin::RECORDER) {
+            self.error = Some("enable the topic-recorder plugin to replay".into());
+            return;
+        }
+        let actions = self.plugins.use_item(crate::plugin::RECORDER, &label);
+        self.apply_plugin_actions(actions);
+        self.screen = Screen::Broker;
+    }
+
+    /// Begin renaming the selected recording (seeds the buffer with its label).
+    pub fn begin_recording_rename(&mut self) {
+        if let Some(rec) = self.selected_recording() {
+            self.recording_rename = Some(rec.label.clone());
+        }
+    }
+
+    /// Apply the in-progress rename to the selected recording, then reload.
+    pub fn apply_recording_rename(&mut self) {
+        let Some(new_label) = self.recording_rename.take() else {
+            return;
+        };
+        let Some(old_label) = self.selected_recording().map(|r| r.label.clone()) else {
+            return;
+        };
+        if new_label.trim().is_empty() || new_label == old_label {
+            self.reload_recordings();
+            return;
+        }
+        match crate::plugin::rename_recording(&self.recordings_conn, &old_label, &new_label) {
+            Ok(()) => self.error = Some(format!("renamed to {new_label}")),
+            Err(e) => self.error = Some(format!("rename failed: {e}")),
+        }
+        self.reload_recordings();
+    }
+
+    /// Delete the selected recording, then reload.
+    pub fn delete_selected_recording(&mut self) {
+        let Some(rec) = self.selected_recording() else {
+            return;
+        };
+        let (path, label) = (rec.path.clone(), rec.label.clone());
+        match crate::plugin::delete_recording(&path) {
+            Ok(()) => self.error = Some(format!("deleted {label}")),
+            Err(e) => self.error = Some(format!("delete failed: {e}")),
+        }
+        self.reload_recordings();
     }
 
     /// Persist the working alert rules for the edited connection, and — if that
