@@ -222,6 +222,54 @@ pub fn builtins() -> Vec<(&'static str, Theme)> {
                 "#586e75", "#002b36",
             ]),
         ),
+        (
+            "Tokyo Night",
+            Theme::from_specs([
+                "#7aa2f7", "#565f89", "#c0caf5", "#1a1b26", "#9ece6a", "#7dcfff", "#e0af68",
+                "#f7768e", "#9ece6a", "#7aa2f7", "#9ece6a", "#ff9e64", "#bb9af7", "#c0caf5",
+                "#565f89", "#16161e",
+            ]),
+        ),
+        (
+            "Catppuccin Mocha",
+            Theme::from_specs([
+                "#89b4fa", "#6c7086", "#cdd6f4", "#1e1e2e", "#a6e3a1", "#74c7ec", "#f9e2af",
+                "#f38ba8", "#a6e3a1", "#89b4fa", "#a6e3a1", "#fab387", "#cba6f7", "#cdd6f4",
+                "#6c7086", "#181825",
+            ]),
+        ),
+        (
+            "One Dark",
+            Theme::from_specs([
+                "#61afef", "#5c6370", "#abb2bf", "#282c34", "#98c379", "#56b6c2", "#e5c07b",
+                "#e06c75", "#98c379", "#61afef", "#98c379", "#d19a66", "#c678dd", "#abb2bf",
+                "#5c6370", "#21252b",
+            ]),
+        ),
+        (
+            "Monokai",
+            Theme::from_specs([
+                "#66d9ef", "#75715e", "#f8f8f2", "#272822", "#a6e22e", "#66d9ef", "#e6db74",
+                "#f92672", "#a6e22e", "#66d9ef", "#e6db74", "#ae81ff", "#fd971f", "#f8f8f2",
+                "#75715e", "#1e1f1c",
+            ]),
+        ),
+        (
+            "Everforest Dark",
+            Theme::from_specs([
+                "#a7c080", "#7a8478", "#d3c6aa", "#2d353b", "#a7c080", "#7fbbb3", "#dbbc7f",
+                "#e67e80", "#a7c080", "#7fbbb3", "#a7c080", "#d699b6", "#e69875", "#d3c6aa",
+                "#7a8478", "#232a2e",
+            ]),
+        ),
+        (
+            "Rosé Pine",
+            Theme::from_specs([
+                "#c4a7e7", "#6e6a86", "#e0def4", "#191724", "#9ccfd8", "#31748f", "#f6c177",
+                "#eb6f92", "#9ccfd8", "#9ccfd8", "#f6c177", "#c4a7e7", "#ebbcba", "#e0def4",
+                "#6e6a86", "#1f1d2e",
+            ]),
+        ),
     ]
 }
 
@@ -293,9 +341,20 @@ mod tests {
     }
 
     #[test]
-    fn builtins_are_complete() {
-        for (_, theme) in builtins() {
-            assert!(theme.specs.iter().all(|s| !s.is_empty()));
+    fn builtins_are_complete_and_parse() {
+        let all = builtins();
+        assert_eq!(all.len(), 11); // Default + 4 originals + 6 added
+        for (name, theme) in all {
+            for (i, spec) in theme.specs.iter().enumerate() {
+                assert!(!spec.is_empty(), "{name}: role {i} is empty");
+                // Every preset uses explicit colors, so a spec that resolves to
+                // Reset means a malformed hex/name slipped in.
+                assert_ne!(
+                    parse_color(spec),
+                    Color::Reset,
+                    "{name}: role {i} spec {spec:?} did not parse",
+                );
+            }
         }
     }
 }
