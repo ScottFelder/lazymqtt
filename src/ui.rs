@@ -737,7 +737,7 @@ fn draw_statusbar(f: &mut Frame, app: &App, area: Rect) {
         Status::Connected => {
             let host = app
                 .active_conn()
-                .map(|c| format!("{}:{}", c.host, c.port))
+                .map(|c| c.host.clone())
                 .unwrap_or_default();
             (format!("● connected: {}", host), Color::Green)
         }
