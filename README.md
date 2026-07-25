@@ -56,6 +56,7 @@ instances (or a leftover) never collide on the broker.
 **Broker — Topics pane** (`1`)
 | Key | Action |
 |-----|--------|
+| `m` | command menu — all broker commands, scroll + Enter |
 | `j`/`k` or ↑/↓ | move in tree |
 | `Enter` | expand/collapse · `→` expand · `←` collapse |
 | `Tab` | cycle panes · `1`/`2`/`3` focus Topics/Payload/History |

@@ -1,4 +1,4 @@
-use crate::app::{AlertForm, App, Focus, FormBuffer, PublishBuffer, Screen, Status};
+use crate::app::{AlertForm, App, Command, Focus, FormBuffer, Screen, Status, BROKER_COMMANDS};
 use crate::config::{Connection, Subscription};
 use crate::mqtt::{self, MqttCommand};
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
@@ -15,6 +15,7 @@ pub fn handle_key(app: &mut App, key: KeyEvent) {
         Screen::Plugins => plugins_keys(app, key),
         Screen::AlertRules => alert_rules_keys(app, key),
         Screen::AlertRuleForm => alert_form_keys(app, key),
+        Screen::CommandMenu => command_menu_keys(app, key),
         Screen::Help => {
             app.screen = if app.handle.is_some() {
                 Screen::Broker
@@ -284,9 +285,13 @@ fn broker_keys(app: &mut App, key: KeyEvent) {
             }
         }
         KeyCode::Char('q') if key.modifiers.contains(KeyModifiers::CONTROL) => {
-            app.should_quit = true;
+            app.run_command(Command::Quit)
         }
-        KeyCode::Char('?') => app.screen = Screen::Help,
+        KeyCode::Char('?') => app.run_command(Command::Help),
+        KeyCode::Char('m') => {
+            app.menu_selected = 0;
+            app.screen = Screen::CommandMenu;
+        }
         KeyCode::Tab => match app.focus {
             Focus::Tree => {
                 app.focus = Focus::Payload;
@@ -298,20 +303,8 @@ fn broker_keys(app: &mut App, key: KeyEvent) {
                 app.reset_selection();
             }
         },
-        KeyCode::Char('c') => {
-            app.tree.clear();
-            app.history.clear();
-            app.expanded.clear();
-            app.tree_selected = 0;
-            app.reset_message_view();
-        }
-        KeyCode::Char('p') => {
-            app.publish = PublishBuffer::default();
-            if let Some(r) = rows.get(app.tree_selected) {
-                app.publish.topic = r.path.clone();
-            }
-            app.screen = Screen::Publish;
-        }
+        KeyCode::Char('c') => app.run_command(Command::ClearTree),
+        KeyCode::Char('p') => app.run_command(Command::Publish),
         KeyCode::Char('j') | KeyCode::Down if app.focus == Focus::Tree => {
             if len > 0 {
                 app.tree_selected = (app.tree_selected + 1).min(len - 1);
@@ -345,38 +338,33 @@ fn broker_keys(app: &mut App, key: KeyEvent) {
                 app.expanded.remove(&r.path);
             }
         }
-        KeyCode::Char('s') => {
-            app.sub_input.clear();
-            app.screen = Screen::Subscribe;
-        }
-        KeyCode::Char('u') => {
-            if let Some(r) = rows.get(app.tree_selected) {
-                let topic = r.path.clone();
-                app.send(MqttCommand::Unsubscribe {
-                    topic: topic.clone(),
-                });
-                if let Some(idx) = app.active {
-                    if let Some(c) = app.config.connections.get_mut(idx) {
-                        c.subscriptions.retain(|s| s.topic != topic);
-                        let _ = app.config.save();
-                    }
-                }
-                app.error = Some(format!("unsubscribed from {}", topic));
-            }
-        }
-        KeyCode::Char('r') => {
-            if let Some(r) = rows.get(app.tree_selected) {
-                app.clear_topic = r.path.clone();
-                app.screen = Screen::ClearRetained;
-            }
-        }
+        KeyCode::Char('s') => app.run_command(Command::Subscribe),
+        KeyCode::Char('u') => app.run_command(Command::Unsubscribe),
+        KeyCode::Char('r') => app.run_command(Command::ClearRetained),
         KeyCode::Char('z') => app.toggle_pane_fold(),
         KeyCode::Char('i') => app.cycle_payload_view(),
-        KeyCode::Char('P') => {
-            app.plugins_selected = 0;
-            app.screen = Screen::Plugins;
+        KeyCode::Char('P') => app.run_command(Command::Plugins),
+        KeyCode::Char('A') => app.run_command(Command::AlertRules),
+        _ => {}
+    }
+}
+
+fn command_menu_keys(app: &mut App, key: KeyEvent) {
+    let len = BROKER_COMMANDS.len();
+    match key.code {
+        KeyCode::Esc | KeyCode::Char('m') | KeyCode::Char('q') => app.screen = Screen::Broker,
+        KeyCode::Char('j') | KeyCode::Down => {
+            app.menu_selected = (app.menu_selected + 1).min(len - 1);
         }
-        KeyCode::Char('A') => app.open_alerts_editor(),
+        KeyCode::Char('k') | KeyCode::Up => {
+            app.menu_selected = app.menu_selected.saturating_sub(1);
+        }
+        KeyCode::Enter => {
+            let cmd = BROKER_COMMANDS[app.menu_selected.min(len - 1)].0;
+            // Return to the broker first; the command may then set its own screen.
+            app.screen = Screen::Broker;
+            app.run_command(cmd);
+        }
         _ => {}
     }
 }

@@ -18,8 +18,47 @@ pub enum Screen {
     Plugins,
     AlertRules,
     AlertRuleForm,
+    CommandMenu,
     Help,
 }
+
+/// A broker-screen command, invocable by its shortcut key or from the command
+/// menu (`m`). One source of truth for both — see `App::run_command`.
+#[derive(Clone, Copy)]
+pub enum Command {
+    Subscribe,
+    Unsubscribe,
+    Publish,
+    ClearRetained,
+    ClearTree,
+    AlertRules,
+    Plugins,
+    Help,
+    Disconnect,
+    Quit,
+}
+
+/// The command menu's contents: (command, shortcut label, description).
+pub const BROKER_COMMANDS: &[(Command, &str, &str)] = &[
+    (Command::Subscribe, "s", "Subscribe to a topic"),
+    (
+        Command::Unsubscribe,
+        "u",
+        "Unsubscribe from the selected topic",
+    ),
+    (Command::Publish, "p", "Publish a message"),
+    (
+        Command::ClearRetained,
+        "r",
+        "Clear the retained message on the selected topic",
+    ),
+    (Command::ClearTree, "c", "Clear the topic tree"),
+    (Command::AlertRules, "A", "Edit alert rules"),
+    (Command::Plugins, "P", "Manage plugins"),
+    (Command::Help, "?", "Help"),
+    (Command::Disconnect, "Esc", "Disconnect"),
+    (Command::Quit, "^q", "Quit"),
+];
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub enum Focus {
@@ -308,6 +347,7 @@ pub struct App {
     pub sub_input: String,       // buffer for the subscribe prompt
     pub clear_topic: String,     // topic awaiting retained-message clear confirmation
     pub plugins_selected: usize, // cursor in the Plugins management screen
+    pub menu_selected: usize,    // cursor in the command menu
 
     // Alert-rules editor (per connection). `alert_rules` is the working copy for
     // the connection identified by `alert_edit_conn` (name shown via
@@ -355,6 +395,7 @@ impl App {
             sub_input: String::new(),
             clear_topic: String::new(),
             plugins_selected: 0,
+            menu_selected: 0,
             alert_rules: Vec::new(),
             alerts_selected: 0,
             alert_form: AlertForm::default(),
@@ -447,6 +488,74 @@ impl App {
             .get(&id)
             .map(|v| v.as_slice())
             .unwrap_or(&[])
+    }
+
+    /// The path of the currently selected topic-tree row, if any.
+    pub fn selected_topic(&self) -> Option<String> {
+        let rows = self.tree.rows(&self.expanded);
+        rows.get(self.tree_selected.min(rows.len().saturating_sub(1)))
+            .map(|r| r.path.clone())
+    }
+
+    /// Run a broker command — the shared entry point for both its shortcut key
+    /// and the command menu.
+    pub fn run_command(&mut self, cmd: Command) {
+        match cmd {
+            Command::Subscribe => {
+                self.sub_input.clear();
+                self.screen = Screen::Subscribe;
+            }
+            Command::Unsubscribe => self.unsubscribe_selected(),
+            Command::Publish => self.open_publish(),
+            Command::ClearRetained => {
+                if let Some(topic) = self.selected_topic() {
+                    self.clear_topic = topic;
+                    self.screen = Screen::ClearRetained;
+                }
+            }
+            Command::ClearTree => {
+                self.tree.clear();
+                self.history.clear();
+                self.expanded.clear();
+                self.tree_selected = 0;
+                self.reset_message_view();
+            }
+            Command::AlertRules => self.open_alerts_editor(),
+            Command::Plugins => {
+                self.plugins_selected = 0;
+                self.screen = Screen::Plugins;
+            }
+            Command::Help => self.screen = Screen::Help,
+            Command::Disconnect => {
+                self.disconnect();
+                self.screen = Screen::Connections;
+            }
+            Command::Quit => self.should_quit = true,
+        }
+    }
+
+    fn unsubscribe_selected(&mut self) {
+        let Some(topic) = self.selected_topic() else {
+            return;
+        };
+        self.send(MqttCommand::Unsubscribe {
+            topic: topic.clone(),
+        });
+        if let Some(idx) = self.active {
+            if let Some(c) = self.config.connections.get_mut(idx) {
+                c.subscriptions.retain(|s| s.topic != topic);
+                let _ = self.config.save();
+            }
+        }
+        self.error = Some(format!("unsubscribed from {}", topic));
+    }
+
+    fn open_publish(&mut self) {
+        self.publish = PublishBuffer::default();
+        if let Some(topic) = self.selected_topic() {
+            self.publish.topic = topic;
+        }
+        self.screen = Screen::Publish;
     }
 
     /// Open the alert-rules editor for the active connection (if connected) or
