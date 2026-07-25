@@ -186,18 +186,21 @@ Name: Test  Host: test.mosquitto.org  Port: 1883  Topics: #
 ```
 src/
   main.rs      entry point, terminal + async render/input loop
-  app.rs       application state (App, Screen/Focus/PaneFold, DetailLine)
+  app/         application state (App) + behavior, one module per concern
+               (screen/view/forms types; connection/commands/broker/alerts/
+                recordings/theme logic)
+  ui/          ratatui rendering, one module per screen (+ common widgets)
+  events/      keyboard/paste handling, one module per screen
   config.rs    connection/subscription persistence
   paths.rs     config dir resolution (~/.config/lazymqtt) + legacy migration
   theme.rs     color theme model, presets, and theme.json persistence
   mqtt.rs      async MQTT client task + event/command channels
   tree.rs      hierarchical topic tree
-  ui.rs        ratatui rendering (one draw_* fn per screen)
-  events.rs    keyboard handling per screen
   plugin/      in-process plugin API, host, and built-in plugins
     mod.rs       Plugin trait + PluginHost
     api.rs       event/action/annotation/inspector types
     config.rs    per-plugin enable/disable persistence
+    recordings.rs / alerts_rules.rs   shared on-disk models
     builtin/     bundled plugins (json-marker, json-view, topic-alerts, topic-recorder)
 ```
 

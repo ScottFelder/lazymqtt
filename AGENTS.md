@@ -36,8 +36,15 @@ communicate over channels. Keep that boundary clean.
 
 ```
 main.rs      Terminal setup + the render/input loop. Owns the tokio runtime.
-app.rs       All UI state (App struct), Screen/Focus/PaneFold/Status enums,
-             form buffers, the DetailLine model, plugin host + annotations.
+app/         The App state object + its behavior, one submodule per concern.
+  mod.rs       App struct, App::new, shared free helpers, re-exports, tests.
+  screen.rs    Screen/Command enums + the command-menu registry.
+  view.rs      Focus/PaneFold/DetailKind + the DetailLine render model.
+  forms.rs     FormBuffer/PublishBuffer/AlertForm buffers + Status.
+  connection.rs  connect/disconnect, send, push_message, plugin dispatch.
+  commands.rs  the command registry entry point + `m`-menu building.
+  broker.rs    topic selection, payload/history line building, text selection.
+  alerts.rs / recordings.rs / theme.rs   each screen's App-side logic.
 config.rs    Connection + Subscription structs; JSON persistence to disk.
 paths.rs     Config dir (~/.config/lazymqtt, XDG on every OS) + one-time
              migration from the old macOS Application Support location.
@@ -45,14 +52,27 @@ theme.rs     Theme (color specs) + Palette (resolved Colors) + presets +
              theme.json persistence. See the theming note below.
 mqtt.rs      Async client task. Message, MqttEvent, MqttCommand, MqttHandle.
 tree.rs      TopicTree: aggregates messages into a hierarchy split on '/'.
-ui.rs        All ratatui rendering. One draw_* fn per screen. No state mutation.
-events.rs    All keyboard handling. One *_keys fn per screen. Mutates App.
+ui/          ratatui rendering, one module per screen; never mutates state.
+  mod.rs       `draw` dispatcher (Screen -> screen module).
+  common.rs    shared widgets: title_block, pane_title, scrollbar, center_rect.
+  <screen>.rs  broker, connections, publish, alerts, recordings, theme,
+               plugins, menu, help, statusbar.
+events/      keyboard/paste handling, one module per screen; mutates App.
+  mod.rs       handle_key/handle_paste dispatchers + strip_newlines.
+  <screen>.rs  broker, connections, publish, alerts, recordings, theme,
+               plugins, menu.
 plugin/      In-process plugin API + host + built-in plugins.
   mod.rs       Plugin trait, PluginHost (dispatch, enable/disable, inspect).
   api.rs       PluginEvent / PluginAction / Annotation / Inspector* types.
   config.rs    per-plugin enable/disable, persisted under plugins/.
   builtin/     bundled plugins (json-marker, json-view, topic-alerts, topic-recorder).
 ```
+
+`App`'s methods are split across `app/*.rs` as separate `impl App` blocks; the
+state types live in `app/{screen,view,forms}.rs` and are re-exported from
+`app/mod.rs`, so `crate::app::{App, Screen, DetailLine, …}` still resolve. When
+adding a screen, its state/logic, rendering, and input each get a file in
+`app/`, `ui/`, and `events/` respectively.
 
 ### Data flow
 
