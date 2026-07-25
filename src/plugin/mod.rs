@@ -7,8 +7,9 @@
 //! internals or the render loop directly.
 //!
 //! Each plugin can be enabled/disabled; the state persists in a `plugins/`
-//! config dir (see [`config`]). A disabled plugin stays loaded but receives no
-//! events.
+//! config dir (see [`config`]). Plugins are **opt-in**: disabled by default, so
+//! a plugin runs only after the user enables it. A disabled plugin stays loaded
+//! but receives no events.
 //!
 //! Dispatch is synchronous on the UI loop, so built-in plugins must be fast.
 //! Bounded queues / isolation belong to a future external-process model; this
@@ -95,7 +96,9 @@ impl PluginHost {
     pub fn with_builtins() -> Self {
         let config_dir = plugin_config_dir();
         // Tests must not read (or be perturbed by) the user's real plugin
-        // config; default keeps every built-in enabled and isolated.
+        // config; a default (empty) config keeps them isolated. Plugins are
+        // opt-in for users, but tests exercise plugin behavior, so every loaded
+        // built-in is forced on under cfg!(test).
         let config = if cfg!(test) {
             PluginConfig::default()
         } else {
@@ -109,9 +112,12 @@ impl PluginHost {
             .into_iter()
             .map(|mut plugin| {
                 // A plugin that fails to load is disabled rather than killing
-                // the app; it stays listed but receives no events.
+                // the app; it stays listed but receives no events. Plugins are
+                // disabled until the user enables them (opt-in) — except in
+                // tests, where every loaded built-in is on.
                 let loaded = plugin.on_load(&ctx).is_ok();
-                let enabled = loaded && config.is_enabled(plugin.metadata().name);
+                let enabled =
+                    loaded && (cfg!(test) || config.is_enabled(plugin.metadata().name));
                 Slot { plugin, enabled }
             })
             .collect();

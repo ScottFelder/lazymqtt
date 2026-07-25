@@ -87,8 +87,9 @@ instances (or a leftover) never collide on the broker.
 Plugins are compiled into the binary and run in-process. They observe events
 (message received, connect/disconnect, tick, …) and respond with actions
 (annotate a message, publish, subscribe, show a status) or supply an alternative
-Payload rendering — without touching connection state directly. Toggle them on
-the Plugins screen (`P`); the choice persists in `plugins/config.json`.
+Payload rendering — without touching connection state directly. Every plugin is
+**disabled by default**; enable the ones you want on the Plugins screen (`P`).
+The choice persists in `plugins/config.json`.
 
 Built-in plugins:
 
