@@ -805,6 +805,10 @@ fn draw_command_menu(f: &mut Frame, app: &App, area: Rect) {
                     Style::default().fg(DIM),
                 ));
             }
+            // Hint that this row cycles through options with ←/→ (or h/l).
+            if it.adjustable {
+                spans.push(Span::styled("  ‹ ›", Style::default().fg(DIM)));
+            }
             ListItem::new(Line::from(spans))
         })
         .collect();
@@ -843,7 +847,7 @@ fn draw_help(f: &mut Frame, app: &App, area: Rect) {
         Line::from("  Enter        save            ·   Esc    cancel"),
         Line::from(""),
         Line::from("Broker screen:"),
-        Line::from("  m            command menu (all commands below, scroll + Enter)"),
+        Line::from("  m            command menu (scroll + Enter; ←/→ or h/l cycle options)"),
         Line::from("  ↑/↓ or j/k   move in tree   ·   Enter    expand/collapse"),
         Line::from("  →            expand         ·   ←        collapse"),
         Line::from("  Tab          cycle panes"),
@@ -919,7 +923,7 @@ fn draw_statusbar(f: &mut Frame, app: &App, area: Rect) {
         Screen::Publish => "Tab:field Enter:publish Esc:cancel",
         Screen::Subscribe => "Enter:subscribe Esc:cancel",
         Screen::ClearRetained => "y/Enter:clear retained  n/Esc:cancel",
-        Screen::CommandMenu => "j/k:move Enter:run Esc:close",
+        Screen::CommandMenu => "j/k:move ←/→:cycle option Enter:run Esc:close",
         Screen::Plugins => "j/k:move space/Enter:toggle Esc:back",
         Screen::AlertRules => "j/k:move a:add e:edit d:delete Esc:back",
         Screen::AlertRuleForm => "Tab:field space:change Enter:save Esc:cancel",

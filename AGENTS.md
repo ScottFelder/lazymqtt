@@ -95,6 +95,15 @@ this loop — plugin dispatch is synchronous here, so plugins must be fast.
   → `invoke_plugin_command` (which calls `PluginHost::invoke` and applies the
   returned actions). Plugins add menu entries via the `commands`/`invoke` trait
   methods, not by editing the menu.
+- **Adjustable menu items cycle in place**: a `PluginCommand` with
+  `adjustable: true` (built with `PluginCommand::option`) is an option cycler,
+  not a one-shot action. Left/right (or `h`/`l`) call `App::adjust_selected_menu_item`
+  → `PluginHost::adjust(index, id, forward)` → `Plugin::adjust(id, forward)`,
+  then rebuild the rows (`build_menu_items`) so the label reflects the new option
+  while the menu stays open. Enter on an adjustable row steps forward too (stays
+  open); Enter on a one-shot row (`PluginCommand::action`) closes the menu and
+  runs. `Plugin::adjust` defaults to `invoke` (forward-only), so single-direction
+  cyclers need no override.
 - **ui.rs never mutates state**; events.rs never renders. Preserve this split.
 - **Persistence is explicit**: after any change to `config.connections` call
   `app.config.save()`. There is no autosave. Plugin enable/disable persists via

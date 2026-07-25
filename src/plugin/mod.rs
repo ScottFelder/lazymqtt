@@ -66,9 +66,18 @@ pub trait Plugin {
         Vec::new()
     }
 
-    /// Run one of this plugin's commands, by the `id` from `commands()`.
+    /// Run one of this plugin's commands, by the `id` from `commands()`. Used
+    /// for one-shot commands (Enter in the menu) and as the default forward step
+    /// for adjustable ones.
     fn invoke(&mut self, _id: &str) -> Vec<PluginAction> {
         Vec::new()
+    }
+
+    /// Cycle an `adjustable` command's option in a direction (`forward` = next,
+    /// else previous), by the `id` from `commands()`. Default: step forward via
+    /// `invoke`, so a plugin whose option only cycles one way needs no override.
+    fn adjust(&mut self, id: &str, _forward: bool) -> Vec<PluginAction> {
+        self.invoke(id)
     }
 }
 
@@ -166,6 +175,14 @@ impl PluginHost {
     pub fn invoke(&mut self, index: usize, id: &str) -> Vec<PluginAction> {
         match self.slots.get_mut(index) {
             Some(slot) if slot.enabled => slot.plugin.invoke(id),
+            _ => Vec::new(),
+        }
+    }
+
+    /// Cycle the plugin at `index`'s adjustable command `id` in a direction.
+    pub fn adjust(&mut self, index: usize, id: &str, forward: bool) -> Vec<PluginAction> {
+        match self.slots.get_mut(index) {
+            Some(slot) if slot.enabled => slot.plugin.adjust(id, forward),
             _ => Vec::new(),
         }
     }

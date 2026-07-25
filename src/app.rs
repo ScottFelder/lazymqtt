@@ -73,13 +73,16 @@ pub enum MenuAction {
     Plugin { plugin: usize, id: &'static str },
 }
 
-/// One row of the command menu (built fresh each open so plugin labels reflect
-/// current state).
+/// One row of the command menu (built fresh each open, and rebuilt after an
+/// in-place adjust, so plugin labels reflect current state).
 pub struct MenuItem {
     pub key: String,   // shortcut label or plugin glyph
     pub label: String, // what the command does
     pub note: String,  // dim suffix (plugin name), empty for core commands
     pub action: MenuAction,
+    /// Cycles through options in place: left/right (or `h`/`l`) adjust it and
+    /// the menu stays open, rather than Enter running a one-shot action.
+    pub adjustable: bool,
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
@@ -521,9 +524,10 @@ impl App {
             .map(|r| r.path.clone())
     }
 
-    /// Build the command menu (core commands + enabled plugins' commands) and
-    /// open it.
-    pub fn open_command_menu(&mut self) {
+    /// Build the command-menu rows: the core `BROKER_COMMANDS` followed by each
+    /// enabled plugin's commands (labels computed fresh, so they reflect current
+    /// state). Shared by `open_command_menu` and the in-place adjust refresh.
+    fn build_menu_items(&self) -> Vec<MenuItem> {
         let mut items: Vec<MenuItem> = BROKER_COMMANDS
             .iter()
             .map(|(cmd, key, desc)| MenuItem {
@@ -531,12 +535,12 @@ impl App {
                 label: desc.to_string(),
                 note: String::new(),
                 action: MenuAction::Core(*cmd),
+                adjustable: false,
             })
             .collect();
+        let metadata = self.plugins.metadata();
         for (plugin, cmd) in self.plugins.commands() {
-            let note = self
-                .plugins
-                .metadata()
+            let note = metadata
                 .get(plugin)
                 .map(|m| m.name.to_string())
                 .unwrap_or_default();
@@ -545,9 +549,16 @@ impl App {
                 label: cmd.label,
                 note,
                 action: MenuAction::Plugin { plugin, id: cmd.id },
+                adjustable: cmd.adjustable,
             });
         }
-        self.menu_items = items;
+        items
+    }
+
+    /// Build the command menu (core commands + enabled plugins' commands) and
+    /// open it.
+    pub fn open_command_menu(&mut self) {
+        self.menu_items = self.build_menu_items();
         self.menu_selected = 0;
         self.screen = Screen::CommandMenu;
     }
@@ -556,6 +567,28 @@ impl App {
     pub fn invoke_plugin_command(&mut self, plugin: usize, id: &str) {
         let actions = self.plugins.invoke(plugin, id);
         self.apply_plugin_actions(actions);
+    }
+
+    /// Cycle the selected menu item's option in a direction (`forward` = right/
+    /// `l`, else left/`h`), applying the plugin's actions and refreshing the
+    /// menu labels in place. No-op for non-adjustable rows.
+    pub fn adjust_selected_menu_item(&mut self, forward: bool) {
+        let Some(item) = self.menu_items.get(self.menu_selected) else {
+            return;
+        };
+        if !item.adjustable {
+            return;
+        }
+        if let MenuAction::Plugin { plugin, id } = item.action {
+            let actions = self.plugins.adjust(plugin, id, forward);
+            self.apply_plugin_actions(actions);
+            // Rebuild so the row's label reflects the new option, keeping the
+            // cursor where it is.
+            self.menu_items = self.build_menu_items();
+            self.menu_selected = self
+                .menu_selected
+                .min(self.menu_items.len().saturating_sub(1));
+        }
     }
 
     /// Run a broker command — the shared entry point for both its shortcut key

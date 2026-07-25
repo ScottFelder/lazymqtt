@@ -101,8 +101,10 @@ Built-in plugins:
 
 Some plugins add commands to the command menu (`m`). The recorder is driven
 entirely from there: **Start/Stop recording**, **Replay newest recording**, and
-toggles for **loop**, topic **prefix** (`replay/` on/off), and **speed**
-(1x → 2x → 5x). Recordings are written per connection as JSON Lines to
+option cyclers for **loop**, topic **prefix** (`replay/` on/off), and **speed**
+(1x / 2x / 5x). Option rows are marked `‹ ›` and cycle in place with the
+left/right arrows (or `h`/`l`), leaving the menu open. Recordings are written
+per connection as JSON Lines to
 `plugins/recordings/<connection-id>-<timestamp>.jsonl` (one message per line with
 a relative `offset_ms`); **Replay newest** plays back the latest recording for
 the active connection. By default replay republishes under a `replay/` topic
