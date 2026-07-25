@@ -101,10 +101,11 @@ They're stored at `plugins/alerts/<connection-id>.json` and loaded when that
 connection connects.
 
 A rule's condition (`when`) is `above` / `below` (with `value`), `changed`, or
-`silent` (with `seconds`). An optional JSON `field` extracts a top-level field
-for numeric comparisons; otherwise the whole payload is parsed as a number.
-Severity is `warn` (default) or `error`. Alerts are visual only — no commands
-are run.
+`silent` (with `seconds`). For numeric comparisons an optional JSON `field`
+extracts a value from the payload — a dot-separated path that nests into objects
+and indexes arrays (e.g. `data.sensors.0.temp`); without it the whole payload is
+used. JSON numbers and numeric strings (`"85"`) both work. Severity is `warn`
+(default) or `error`. Alerts are visual only — no commands are run.
 
 See `FEATURES.md` for the plugin roadmap (schema validation, record/replay,
 analytics, external-process/WASM loading, …).
