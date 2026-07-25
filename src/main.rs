@@ -69,7 +69,8 @@ async fn run<B: ratatui::backend::Backend>(
             match ev {
                 MqttEvent::Connected => {
                     app.status = Status::Connected;
-                    app.dispatch_plugin(PluginEvent::Connected);
+                    let id = app.active_conn().map(|c| c.id.clone()).unwrap_or_default();
+                    app.dispatch_plugin(PluginEvent::Connected { connection: id });
                 }
                 MqttEvent::Disconnected(e) => {
                     app.status = Status::Disconnected(e.clone());

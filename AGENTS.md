@@ -132,6 +132,12 @@ bytes-payload refactor and command palette, are deferred (see `FEATURES.md`).
 Don't pull a heavy scripting/WASM runtime in without discussion — it undercuts
 the single-binary, small-dependency goal.
 
+`topic-alerts` config is **per connection**: rules live in
+`plugins/alerts/<connection-id>.json` (shared model in `plugin/alerts_rules.rs`,
+reused by the in-app editor reached with `A`). `PluginEvent::Connected` carries
+the connection id so the plugin loads that connection's rules; editing while
+connected re-dispatches `Connected` to reload live.
+
 ## Security note
 
 Broker passwords are currently stored in plaintext in `connections.json`.

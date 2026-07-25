@@ -1,4 +1,6 @@
-use crate::app::{App, DetailKind, DetailLine, Focus, PaneFold, PublishBuffer, Screen, Status};
+use crate::app::{
+    AlertForm, App, DetailKind, DetailLine, Focus, PaneFold, PublishBuffer, Screen, Status,
+};
 use crate::plugin::{InspectorStyle, Severity};
 use ratatui::{
     layout::{Alignment, Constraint, Direction, Layout, Margin, Rect},
@@ -37,6 +39,8 @@ pub fn draw(f: &mut Frame, app: &App) {
             draw_clear_retained(f, &app.clear_topic, chunks[0]);
         }
         Screen::Plugins => draw_plugins(f, app, chunks[0]),
+        Screen::AlertRules => draw_alert_rules(f, app, chunks[0]),
+        Screen::AlertRuleForm => draw_alert_rule_form(f, app, chunks[0]),
         Screen::Help => draw_help(f, app, chunks[0]),
     }
 
@@ -624,6 +628,116 @@ fn draw_clear_retained(f: &mut Frame, topic: &str, area: Rect) {
     f.render_widget(p, popup);
 }
 
+fn draw_alert_rules(f: &mut Frame, app: &App, area: Rect) {
+    let items: Vec<ListItem> = app
+        .alert_rules
+        .iter()
+        .map(|r| {
+            let (label, sev_color) = match r.severity {
+                crate::plugin::AlertSeverity::Warn => (r.severity.label(), Color::Yellow),
+                crate::plugin::AlertSeverity::Error => (r.severity.label(), Color::Red),
+            };
+            ListItem::new(Line::from(vec![
+                Span::styled(
+                    format!("{:<24}", r.topic),
+                    Style::default().fg(Color::White),
+                ),
+                Span::styled(format!("{:<22}", r.summary()), Style::default().fg(DIM)),
+                Span::styled(label.to_string(), Style::default().fg(sev_color)),
+            ]))
+        })
+        .collect();
+
+    let title = format!("Alert Rules — {}", app.alert_edit_name);
+    let list = List::new(items)
+        .block(title_block(&title))
+        .highlight_style(
+            Style::default()
+                .bg(ACCENT)
+                .fg(Color::Black)
+                .add_modifier(Modifier::BOLD),
+        )
+        .highlight_symbol("▶ ");
+
+    let mut state = ListState::default();
+    if !app.alert_rules.is_empty() {
+        state.select(Some(app.alerts_selected.min(app.alert_rules.len() - 1)));
+    }
+    f.render_stateful_widget(list, area, &mut state);
+
+    if app.alert_rules.is_empty() {
+        let hint = Paragraph::new("No alert rules for this connection. Press 'a' to add one.")
+            .style(Style::default().fg(DIM))
+            .alignment(Alignment::Center);
+        f.render_widget(hint, center_rect(area, 70, 1));
+    }
+}
+
+fn draw_alert_rule_form(f: &mut Frame, app: &App, area: Rect) {
+    let form = &app.alert_form;
+    let title = if form.editing_index.is_some() {
+        "Edit Alert Rule"
+    } else {
+        "New Alert Rule"
+    };
+
+    // Only the fields relevant to the chosen condition are active.
+    let value_active = form.when <= 1; // above / below
+    let seconds_active = form.when == 3; // silent
+    let field_active = form.when <= 1;
+
+    let when_label = AlertForm::WHEN_LABELS[form.when];
+    let sev_label = AlertForm::SEVERITY_LABELS[form.severity];
+    let fields: [(&str, String, bool); 6] = [
+        ("Topic", form.topic.clone(), true),
+        ("When", format!("{when_label}  (space to change)"), true),
+        ("Value", form.value.clone(), value_active),
+        ("Seconds", form.seconds.clone(), seconds_active),
+        ("Field", form.field.clone(), field_active),
+        ("Severity", format!("{sev_label}  (space to change)"), true),
+    ];
+
+    let mut lines = Vec::new();
+    for (i, (label, val, active)) in fields.iter().enumerate() {
+        let focused = i == form.focus;
+        let marker = if focused { "▶ " } else { "  " };
+        let label_style = if focused {
+            Style::default().fg(ACCENT).add_modifier(Modifier::BOLD)
+        } else {
+            Style::default().fg(Color::White)
+        };
+        // A text-input caret on the editable text fields.
+        let is_text = matches!(i, 0 | 2 | 3 | 4);
+        let cursor = if focused && is_text { "_" } else { "" };
+        let shown = if *active {
+            val.clone()
+        } else {
+            "(n/a)".to_string()
+        };
+        let val_style = if *active {
+            Style::default().fg(Color::White)
+        } else {
+            Style::default().fg(DIM)
+        };
+        lines.push(Line::from(vec![
+            Span::styled(marker, Style::default().fg(ACCENT)),
+            Span::styled(format!("{:<10}", label), label_style),
+            Span::styled(shown, val_style),
+            Span::styled(cursor, Style::default().fg(ACCENT)),
+        ]));
+        lines.push(Line::from(""));
+    }
+    lines.push(Line::from(Span::styled(
+        "Tab: next field · space: change When/Severity · Enter: save · Esc: cancel",
+        Style::default().fg(DIM),
+    )));
+
+    let p = Paragraph::new(lines)
+        .block(title_block(title))
+        .wrap(Wrap { trim: false });
+    f.render_widget(p, area);
+}
+
 fn draw_plugins(f: &mut Frame, app: &App, area: Rect) {
     let entries = app.plugins.entries();
     let items: Vec<ListItem> = entries
@@ -691,6 +805,7 @@ fn draw_help(f: &mut Frame, app: &App, area: Rect) {
         Line::from("  s            subscribe      ·   u        unsubscribe (selected)"),
         Line::from("  p            publish        ·   c        clear tree"),
         Line::from("  r            clear retained message on selected topic"),
+        Line::from("  A            edit alert rules (per connection) · P  plugins"),
         Line::from("  Esc          disconnect     ·   ?        this help"),
         Line::from(""),
         Line::from("Payload & History panes (Tab or 2/3 to focus):"),
@@ -745,7 +860,7 @@ fn draw_statusbar(f: &mut Frame, app: &App, area: Rect) {
     };
 
     let hints = match app.screen {
-        Screen::Connections => "n:new e:edit d:del Enter:connect ?:help q:quit",
+        Screen::Connections => "n:new e:edit d:del Enter:connect A:alerts P:plugins ?:help q:quit",
         Screen::ConnectionForm => "Tab:field Enter:save Esc:cancel",
         Screen::Broker if app.focus == Focus::Payload => {
             "hjkl:move v:select y:yank i:view z:fold-pane 1:topics 3:history p:publish ?:help"
@@ -754,12 +869,14 @@ fn draw_statusbar(f: &mut Frame, app: &App, area: Rect) {
             "hjkl:move v:select y:yank Enter:expand-entry z:fold-pane 2:payload p:publish ?:help"
         }
         Screen::Broker => {
-            "j/k:move Enter:expand 2:payload 3:history s:sub u:unsub p:pub r:clr-retain Esc:disconnect"
+            "j/k:move Enter:expand 2:payload 3:history s:sub u:unsub p:pub r:clr-retain A:alerts Esc:disconnect"
         }
         Screen::Publish => "Tab:field Enter:publish Esc:cancel",
         Screen::Subscribe => "Enter:subscribe Esc:cancel",
         Screen::ClearRetained => "y/Enter:clear retained  n/Esc:cancel",
         Screen::Plugins => "j/k:move space/Enter:toggle Esc:back",
+        Screen::AlertRules => "j/k:move a:add e:edit d:delete Esc:back",
+        Screen::AlertRuleForm => "Tab:field space:change Enter:save Esc:cancel",
         Screen::Help => "any key: back",
     };
 
