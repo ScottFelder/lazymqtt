@@ -19,6 +19,7 @@ pub mod alerts_rules;
 pub mod api;
 mod builtin;
 mod config;
+pub mod generators;
 pub mod recordings;
 pub mod schemas;
 pub mod templates;
