@@ -88,6 +88,9 @@ pub enum PluginAction {
         qos: u8,
         retain: bool,
     },
+    /// Open the emitting plugin's pane (see `Plugin::pane`). Returned from a menu
+    /// command; the app resolves which plugin from the invoke call site.
+    OpenPane,
     /// Show a transient message in the status bar.
     Status(String),
 }
@@ -197,4 +200,52 @@ impl InspectorSpan {
 pub struct InspectorView {
     pub label: String,
     pub lines: Vec<Vec<InspectorSpan>>,
+}
+
+/// Semantic style for a piece of a plugin pane; the renderer maps it to a theme
+/// color (kept UI-agnostic, like `InspectorStyle`).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PaneStyle {
+    /// A section header / title.
+    Header,
+    /// A dim field label.
+    Label,
+    /// A normal value.
+    Value,
+    /// Accented value (e.g. a bar/gauge).
+    Accent,
+    /// Positive/healthy.
+    Good,
+    /// Cautionary.
+    Warn,
+    /// Problem/error.
+    Bad,
+    /// De-emphasized text.
+    Muted,
+}
+
+/// One styled piece of a pane line.
+#[derive(Debug, Clone)]
+pub struct PaneSpan {
+    pub text: String,
+    pub style: PaneStyle,
+}
+
+impl PaneSpan {
+    pub fn new(text: impl Into<String>, style: PaneStyle) -> Self {
+        Self {
+            text: text.into(),
+            style,
+        }
+    }
+}
+
+/// A whole-screen view a plugin owns and renders (e.g. traffic analytics). The
+/// core draws it in the `PluginPane` screen, refreshed every frame so live
+/// stats update. Plugins build it from their own state — they never touch the
+/// terminal.
+#[derive(Debug, Clone)]
+pub struct PaneView {
+    pub title: String,
+    pub lines: Vec<Vec<PaneSpan>>,
 }

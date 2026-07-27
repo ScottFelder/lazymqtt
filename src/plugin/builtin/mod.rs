@@ -1,6 +1,7 @@
 //! Built-in plugins compiled into the binary.
 
 mod alerts;
+mod analytics;
 mod generator;
 mod json_view;
 mod observer;
@@ -19,6 +20,7 @@ pub fn all() -> Vec<Box<dyn Plugin>> {
         Box::new(schema::SchemaValidator::default()),
         Box::new(templates::PublishTemplates::default()),
         Box::new(generator::PayloadGenerator::default()),
+        Box::new(analytics::TrafficAnalytics::default()),
         Box::new(recorder::Recorder::default()),
     ]
 }
