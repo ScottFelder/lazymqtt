@@ -96,7 +96,7 @@ impl Plugin for TrafficAnalytics {
             format!("{}/s  (peak {}/s)", self.rate_msgs, self.peak_msgs),
         ));
         lines.push(vec![
-            PaneSpan::new(format!("{:<12}", "  history"), PaneStyle::Label),
+            PaneSpan::new(format!("  {:<11}", "history"), PaneStyle::Label),
             PaneSpan::new(sparkline(&self.history), PaneStyle::Accent),
         ]);
         lines.push(field("Throughput", human_bytes(self.total_bytes)));
@@ -146,7 +146,7 @@ impl Plugin for TrafficAnalytics {
 /// A `label   value` line (dim label, normal value).
 fn field(label: &str, value: String) -> Vec<PaneSpan> {
     vec![
-        PaneSpan::new(format!("  {label:<10}"), PaneStyle::Label),
+        PaneSpan::new(format!("  {label:<11}"), PaneStyle::Label),
         PaneSpan::new(value, PaneStyle::Value),
     ]
 }

@@ -119,11 +119,19 @@ Built-in plugins, each with its own demo:
 
 **json-schema** — validates each message against a **per-connection** JSON Schema mapped by topic filter, annotating it valid (✓) or invalid (✗, with the failing path) and flagging the failure in the status bar. Edit mappings in-app with `S`.
 
+![json-schema demo](assets/json-schema.gif)
+
 **publish-templates** — saved topic/payload/QoS/retain presets. Each appears in the `m` menu; picking one opens the publish form pre-filled so you can tweak `{{placeholders}}` and review before sending. Save the current publish form as a template with `^T`.
+
+![publish-templates demo](assets/publish-templates.gif)
 
 **payload-generator** — publishes synthetic payloads for exercising subscribers: counters, random values, timestamps (optionally wrapped in a JSON `template`). Each generator is an `m`-menu command; a one-shot publishes once, a streaming generator (`interval_ms`) toggles on/off and fires at its rate. Configured in `plugins/generators.json`.
 
+![payload-generator demo](assets/payload-generator.gif)
+
 **traffic-analytics** — a live stats dashboard in its own pane (open "Traffic analytics" from the `m` menu): message rate + peak with a sparkline, total/throughput, QoS mix, retained share, and a busiest-topics bar chart. Updates every frame; resets per connection.
+
+![traffic-analytics demo](assets/traffic-analytics.gif)
 
 **topic-recorder** — records the connection's traffic to a file and replays it back to the broker, preserving timing; a picker (`R`) replays/renames/deletes individual recordings.
 
