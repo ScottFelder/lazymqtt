@@ -120,6 +120,8 @@ Built-in plugins, each with its own demo:
 
 **publish-templates** — saved topic/payload/QoS/retain presets. Each appears in the `m` menu; picking one opens the publish form pre-filled so you can tweak `{{placeholders}}` and review before sending. Save the current publish form as a template with `^T`.
 
+**payload-generator** — publishes synthetic payloads for exercising subscribers: counters, random values, timestamps (optionally wrapped in a JSON `template`). Each generator is an `m`-menu command; a one-shot publishes once, a streaming generator (`interval_ms`) toggles on/off and fires at its rate. Configured in `plugins/generators.json`.
+
 **topic-recorder** — records the connection's traffic to a file and replays it back to the broker, preserving timing; a picker (`R`) replays/renames/deletes individual recordings.
 
 ![topic-recorder demo](assets/topic-recorder.gif)

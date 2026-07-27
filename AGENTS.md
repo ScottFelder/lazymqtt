@@ -67,10 +67,11 @@ plugin/      In-process plugin API + host + built-in plugins.
   api.rs       PluginEvent / PluginAction / Annotation / Inspector* types.
   config.rs    per-plugin enable/disable, persisted under plugins/.
   builtin/     bundled plugins (json-marker, json-view, topic-alerts,
-               json-schema, publish-templates, topic-recorder).
+               json-schema, publish-templates, payload-generator, topic-recorder).
   topics.rs    shared MQTT topic-filter matching (`+`/`#`).
   schemas.rs   per-connection topic→schema mappings + subset validator.
   templates.rs global publish presets (topic/payload/QoS/retain).
+  generators.rs global payload generators (counter/random/timestamp).
 ```
 
 `App`'s methods are split across `app/*.rs` as separate `impl App` blocks; the
