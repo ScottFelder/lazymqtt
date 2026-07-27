@@ -4,6 +4,7 @@ mod alerts;
 mod json_view;
 mod observer;
 mod recorder;
+mod schema;
 
 use super::Plugin;
 
@@ -13,6 +14,7 @@ pub fn all() -> Vec<Box<dyn Plugin>> {
         Box::new(observer::JsonMarker::default()),
         Box::new(json_view::JsonView),
         Box::new(alerts::TopicAlerts::default()),
+        Box::new(schema::SchemaValidator::default()),
         Box::new(recorder::Recorder::default()),
     ]
 }

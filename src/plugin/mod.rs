@@ -20,6 +20,8 @@ pub mod api;
 mod builtin;
 mod config;
 pub mod recordings;
+pub mod schemas;
+mod topics;
 
 pub use alerts_rules::{AlertCondition, AlertRule, AlertSeverity};
 pub use api::{
