@@ -51,7 +51,7 @@ pub(crate) fn draw_statusbar(f: &mut Frame, app: &App, area: Rect) {
         Screen::Theme if app.theme_edit.is_some() => {
             "type a color (name or #rrggbb)  Enter:apply  Esc:cancel"
         }
-        Screen::Theme => "j/k:move Enter:apply/edit s:save Esc:back",
+        Screen::Theme => "j/k:move Enter:apply/edit Esc:back · auto-saved",
         Screen::AlertRuleForm => "Tab:field space:change Enter:save Esc:cancel",
         Screen::Help => "any key: back",
     };
