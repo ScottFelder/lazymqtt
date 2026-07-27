@@ -245,6 +245,17 @@ impl PluginHost {
             .collect()
     }
 
+    /// Enabled plugins that contribute at least one command, as (slot index,
+    /// metadata) — used to build the command menu's per-plugin submenu entries.
+    pub fn command_plugins(&self) -> Vec<(usize, PluginMetadata)> {
+        self.slots
+            .iter()
+            .enumerate()
+            .filter(|(_, s)| s.enabled && !s.plugin.commands().is_empty())
+            .map(|(i, s)| (i, s.plugin.metadata()))
+            .collect()
+    }
+
     /// Commands contributed by the enabled plugins, each tagged with its slot
     /// index so `invoke` can target the right plugin.
     pub fn commands(&self) -> Vec<(usize, PluginCommand)> {

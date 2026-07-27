@@ -65,11 +65,12 @@ pub struct App {
     // stable message id (collision-free, unlike the old millisecond timestamp).
     pub expanded_history: HashSet<u64>,
 
-    pub sub_input: String,         // buffer for the subscribe prompt
-    pub clear_topic: String,       // topic awaiting retained-message clear confirmation
-    pub plugins_selected: usize,   // cursor in the Plugins management screen
-    pub menu_selected: usize,      // cursor in the command menu
-    pub menu_items: Vec<MenuItem>, // command-menu rows, rebuilt each open
+    pub sub_input: String,          // buffer for the subscribe prompt
+    pub clear_topic: String,        // topic awaiting retained-message clear confirmation
+    pub plugins_selected: usize,    // cursor in the Plugins management screen
+    pub menu_selected: usize,       // cursor in the command menu
+    pub menu_items: Vec<MenuItem>,  // command-menu rows, rebuilt each open
+    pub menu_plugin: Option<usize>, // None = top level; Some = a plugin's submenu
 
     // Alert-rules editor (per connection). `alert_rules` is the working copy for
     // the connection identified by `alert_edit_conn` (name shown via
@@ -174,6 +175,7 @@ impl App {
             plugins_selected: 0,
             menu_selected: 0,
             menu_items: Vec::new(),
+            menu_plugin: None,
             alert_rules: Vec::new(),
             alerts_selected: 0,
             alert_form: AlertForm::default(),
