@@ -8,6 +8,7 @@ mod menu;
 mod plugins;
 mod publish;
 mod recordings;
+mod schemas;
 mod theme;
 
 use crate::app::{App, Screen};
@@ -26,6 +27,8 @@ pub fn handle_key(app: &mut App, key: KeyEvent) {
         Screen::Plugins => plugins::plugins_keys(app, key),
         Screen::AlertRules => alerts::alert_rules_keys(app, key),
         Screen::AlertRuleForm => alerts::alert_form_keys(app, key),
+        Screen::Schemas => schemas::schemas_keys(app, key),
+        Screen::SchemaForm => schemas::schema_form_keys(app, key),
         Screen::Recordings => recordings::recordings_keys(app, key),
         Screen::RecordingEdit => recordings::recording_edit_keys(app, key),
         Screen::Theme => theme::theme_keys(app, key),
@@ -61,12 +64,19 @@ pub fn handle_paste(app: &mut App, data: String) {
             if let Some(buf) = app.rec_edit_saveas.as_mut() {
                 buf.push_str(&strip_newlines(&data));
             } else {
-                app.rec_edit_paste(&data);
+                app.rec_editor.paste(&data);
             }
         }
         Screen::Theme => {
             if let Some(buf) = app.theme_edit.as_mut() {
                 buf.push_str(&strip_newlines(&data));
+            }
+        }
+        Screen::SchemaForm => {
+            if app.schema_form.focus == 0 {
+                app.schema_form.topic.push_str(&strip_newlines(&data));
+            } else {
+                app.schema_form.body.paste(&data);
             }
         }
         Screen::ConnectionForm => {

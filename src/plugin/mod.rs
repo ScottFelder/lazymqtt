@@ -21,6 +21,7 @@ mod builtin;
 mod config;
 pub mod recordings;
 pub mod schemas;
+pub mod templates;
 mod topics;
 
 pub use alerts_rules::{AlertCondition, AlertRule, AlertSeverity};
@@ -29,6 +30,8 @@ pub use api::{
     PluginContext, PluginEvent, PluginMetadata, Severity,
 };
 pub use recordings::Recording;
+pub use schemas::SchemaMapping;
+pub use templates::PublishTemplate;
 
 /// Plugin name of the built-in record/replay plugin (the recordings picker
 /// hands chosen recordings to it via `PluginHost::use_item`).
@@ -45,6 +48,21 @@ pub fn load_alert_rules(connection_id: &str) -> Vec<AlertRule> {
 /// Persist a connection's alert rules to the plugin config dir.
 pub fn save_alert_rules(connection_id: &str, rules: &[AlertRule]) -> anyhow::Result<()> {
     alerts_rules::save(&plugin_config_dir(), connection_id, rules)
+}
+
+/// Load a connection's JSON Schema mappings from the plugin config dir.
+pub fn load_schemas(connection_id: &str) -> Vec<SchemaMapping> {
+    schemas::load(&plugin_config_dir(), connection_id)
+}
+
+/// Persist a connection's JSON Schema mappings to the plugin config dir.
+pub fn save_schemas(connection_id: &str, mappings: &[SchemaMapping]) -> std::io::Result<()> {
+    schemas::save(&plugin_config_dir(), connection_id, mappings)
+}
+
+/// Save (or replace by name) a global publish template.
+pub fn save_publish_template(template: PublishTemplate) -> std::io::Result<()> {
+    templates::upsert(&plugin_config_dir(), template)
 }
 
 /// A connection's recordings, newest first.

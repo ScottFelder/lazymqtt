@@ -71,7 +71,8 @@ instances (or a leftover) never collide on the broker.
 | `s` · `u` | subscribe · unsubscribe (selected) |
 | `p` · `r` | publish · clear retained (selected) |
 | `x` · `c` | clear selected topic (from view) · clear tree |
-| `A` · `R` | alert rules · recordings (replay/edit/rename/delete) |
+| `A` · `S` | alert rules · JSON schemas |
+| `R` | recordings (replay/edit/rename/delete) |
 | `T` · `P` · `?` | theme · plugins · help |
 | `Esc` · `Ctrl-q` | disconnect · quit |
 
@@ -115,7 +116,9 @@ Built-in plugins, each with its own demo:
 
 ![topic-alerts demo](assets/topic-alerts.gif)
 
-**json-schema** — validates each message against a **per-connection** JSON Schema mapped by topic filter, annotating it valid (✓) or invalid (✗, with the failing path) and flagging the failure in the status bar.
+**json-schema** — validates each message against a **per-connection** JSON Schema mapped by topic filter, annotating it valid (✓) or invalid (✗, with the failing path) and flagging the failure in the status bar. Edit mappings in-app with `S`.
+
+**publish-templates** — saved topic/payload/QoS/retain presets. Each appears in the `m` menu; picking one opens the publish form pre-filled so you can tweak `{{placeholders}}` and review before sending. Save the current publish form as a template with `^T`.
 
 **topic-recorder** — records the connection's traffic to a file and replays it back to the broker, preserving timing; a picker (`R`) replays/renames/deletes individual recordings.
 
@@ -158,9 +161,12 @@ and indexes arrays (e.g. `data.sensors.0.temp`); without it the whole payload is
 used. JSON numbers and numeric strings (`"85"`) both work. Severity is `warn`
 (default) or `error`. Alerts are visual only — no commands are run.
 
-JSON Schemas are also **per connection**, stored at
-`plugins/schemas/<connection-id>.json` (hand-editable) as a list of
-`{ "topic": "<filter>", "schema": { … } }` mappings; a message is validated
+JSON Schemas are also **per connection**, edited in-app: press `S` (from
+Connections or Broker) for the schema list — `a` add, `e` edit, `d` delete. The
+form has a topic-filter field and a multi-line JSON editor for the schema body
+(`Tab` switches between them, `^S` saves); saving validates the JSON. They're
+stored at `plugins/schemas/<connection-id>.json` (also hand-editable) as a list
+of `{ "topic": "<filter>", "schema": { … } }` mappings; a message is validated
 against the first mapping whose topic filter matches. The validator covers a
 practical subset of JSON Schema — `type` (incl. `integer` and arrays of types),
 `required`, `properties`, `items`, `enum`, `const`,
@@ -168,8 +174,8 @@ practical subset of JSON Schema — `type` (incl. `integer` and arrays of types)
 `minLength`/`maxLength`, `minItems`/`maxItems` — and ignores keywords it doesn't
 recognize.
 
-See `FEATURES.md` for the plugin roadmap (publish templates, analytics,
-external-process/WASM loading, …).
+See `FEATURES.md` for the plugin roadmap (traffic analytics, ecosystem
+decoders, external-process/WASM loading, …).
 
 ## Theming
 
@@ -199,8 +205,8 @@ Name: Test  Host: test.mosquitto.org  Port: 1883  Topics: #
 src/
   main.rs      entry point, terminal + async render/input loop
   app/         application state (App) + behavior, one module per concern
-               (screen/view/forms types; connection/commands/broker/alerts/
-                recordings/theme logic)
+               (screen/view/forms/textarea types; connection/commands/broker/
+                alerts/schemas/recordings/theme logic)
   ui/          ratatui rendering, one module per screen (+ common widgets)
   events/      keyboard/paste handling, one module per screen
   config.rs    connection/subscription persistence
@@ -212,8 +218,10 @@ src/
     mod.rs       Plugin trait + PluginHost
     api.rs       event/action/annotation/inspector types
     config.rs    per-plugin enable/disable persistence
-    recordings.rs / alerts_rules.rs   shared on-disk models
-    builtin/     bundled plugins (json-marker, json-view, topic-alerts, topic-recorder)
+    schemas.rs / alerts_rules.rs / recordings.rs / templates.rs / topics.rs
+                 shared models + validators + topic matching
+    builtin/     bundled plugins (json-marker, json-view, topic-alerts,
+                 json-schema, publish-templates, topic-recorder)
 ```
 
 ## License

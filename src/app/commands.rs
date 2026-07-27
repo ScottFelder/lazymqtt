@@ -56,16 +56,19 @@ impl App {
         if !item.adjustable {
             return;
         }
-        if let MenuAction::Plugin { plugin, id } = item.action {
-            let actions = self.plugins.adjust(plugin, id, forward);
-            self.apply_plugin_actions(actions);
-            // Rebuild so the row's label reflects the new option, keeping the
-            // cursor where it is.
-            self.menu_items = self.build_menu_items();
-            self.menu_selected = self
-                .menu_selected
-                .min(self.menu_items.len().saturating_sub(1));
-        }
+        // Copy the target out so the immutable borrow of `self` ends before the
+        // mutable plugin calls below.
+        let MenuAction::Plugin { plugin, id } = &item.action else {
+            return;
+        };
+        let (plugin, id) = (*plugin, id.clone());
+        let actions = self.plugins.adjust(plugin, &id, forward);
+        self.apply_plugin_actions(actions);
+        // Rebuild so the row's label reflects the new option, keeping the cursor.
+        self.menu_items = self.build_menu_items();
+        self.menu_selected = self
+            .menu_selected
+            .min(self.menu_items.len().saturating_sub(1));
     }
 
     /// Run a broker command — the shared entry point for both its shortcut key
@@ -97,6 +100,7 @@ impl App {
                 self.reset_message_view();
             }
             Command::AlertRules => self.open_alerts_editor(),
+            Command::Schemas => self.open_schemas(),
             Command::Recordings => self.open_recordings(),
             Command::Theme => self.open_theme(),
             Command::Plugins => {

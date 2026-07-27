@@ -11,6 +11,8 @@ pub enum Screen {
     Plugins,
     AlertRules,
     AlertRuleForm,
+    Schemas,
+    SchemaForm,
     Recordings,
     RecordingEdit,
     Theme,
@@ -29,6 +31,7 @@ pub enum Command {
     ClearTopic,
     ClearTree,
     AlertRules,
+    Schemas,
     Recordings,
     Theme,
     Plugins,
@@ -58,6 +61,7 @@ pub const BROKER_COMMANDS: &[(Command, &str, &str)] = &[
     ),
     (Command::ClearTree, "c", "Clear the topic tree"),
     (Command::AlertRules, "A", "Edit alert rules"),
+    (Command::Schemas, "S", "Edit JSON Schemas"),
     (
         Command::Recordings,
         "R",
@@ -71,10 +75,10 @@ pub const BROKER_COMMANDS: &[(Command, &str, &str)] = &[
 ];
 
 /// What a command-menu row does when chosen.
-#[derive(Clone, Copy)]
+#[derive(Clone)]
 pub enum MenuAction {
     Core(Command),
-    Plugin { plugin: usize, id: &'static str },
+    Plugin { plugin: usize, id: String },
 }
 
 /// One row of the command menu (built fresh each open, and rebuilt after an

@@ -13,6 +13,7 @@ pub(crate) fn connections_keys(app: &mut App, key: KeyEvent) {
             app.screen = Screen::Plugins;
         }
         KeyCode::Char('A') => app.open_alerts_editor(),
+        KeyCode::Char('S') => app.open_schemas(),
         KeyCode::Char('T') => app.open_theme(),
         KeyCode::Char('j') | KeyCode::Down => {
             if len > 0 {

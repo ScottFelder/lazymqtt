@@ -55,6 +55,34 @@ pub(crate) fn subscribe_keys(app: &mut App, key: KeyEvent) {
 }
 
 pub(crate) fn publish_keys(app: &mut App, key: KeyEvent) {
+    // "Save as template" mode: a name prompt over the publish form.
+    if app.publish_save_as.is_some() {
+        match key.code {
+            KeyCode::Esc => app.publish_save_as = None,
+            KeyCode::Enter => app.commit_publish_template(),
+            KeyCode::Backspace => {
+                if let Some(buf) = app.publish_save_as.as_mut() {
+                    buf.pop();
+                }
+            }
+            KeyCode::Char(c) => {
+                if let Some(buf) = app.publish_save_as.as_mut() {
+                    buf.push(c);
+                }
+            }
+            _ => {}
+        }
+        return;
+    }
+
+    let ctrl = key
+        .modifiers
+        .contains(crossterm::event::KeyModifiers::CONTROL);
+    if ctrl && matches!(key.code, KeyCode::Char('t')) {
+        app.publish_save_as = Some(String::new()); // start the template-name prompt
+        return;
+    }
+
     let pb = &mut app.publish;
     match key.code {
         KeyCode::Esc => app.screen = Screen::Broker,

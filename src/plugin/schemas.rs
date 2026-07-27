@@ -32,7 +32,29 @@ pub struct SchemaMapping {
     pub schema: Value,
 }
 
-#[derive(Debug, Default, Deserialize)]
+impl SchemaMapping {
+    /// One-line summary of the schema for the editor list (e.g.
+    /// `object · required: temp, unit`).
+    pub fn summary(&self) -> String {
+        let obj = match self.schema.as_object() {
+            Some(o) => o,
+            None => return "any".to_string(),
+        };
+        let ty = obj.get("type").and_then(Value::as_str).unwrap_or("any");
+        let required: Vec<&str> = obj
+            .get("required")
+            .and_then(Value::as_array)
+            .map(|a| a.iter().filter_map(Value::as_str).collect())
+            .unwrap_or_default();
+        if required.is_empty() {
+            ty.to_string()
+        } else {
+            format!("{ty} · required: {}", required.join(", "))
+        }
+    }
+}
+
+#[derive(Debug, Default, Deserialize, Serialize)]
 struct SchemaFile {
     #[serde(default)]
     mappings: Vec<SchemaMapping>,
@@ -50,6 +72,16 @@ pub fn load(dir: &Path, connection_id: &str) -> Vec<SchemaMapping> {
         .and_then(|s| serde_json::from_str::<SchemaFile>(&s).ok())
         .map(|f| f.mappings)
         .unwrap_or_default()
+}
+
+/// Persist a connection's schema mappings to `<dir>/schemas/<id>.json`.
+pub fn save(dir: &Path, connection_id: &str, mappings: &[SchemaMapping]) -> std::io::Result<()> {
+    fs::create_dir_all(dir.join("schemas"))?;
+    let file = SchemaFile {
+        mappings: mappings.to_vec(),
+    };
+    let json = serde_json::to_string_pretty(&file).unwrap_or_default();
+    fs::write(schemas_path(dir, connection_id), json)
 }
 
 /// Validate `instance` against `schema`, returning the first violation as a

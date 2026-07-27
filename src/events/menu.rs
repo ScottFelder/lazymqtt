@@ -24,12 +24,12 @@ pub(crate) fn command_menu_keys(app: &mut App, key: KeyEvent) {
             if item.adjustable {
                 app.adjust_selected_menu_item(true);
             } else {
-                let action = item.action;
+                let action = item.action.clone();
                 // Return to the broker first; a command may then set its own screen.
                 app.screen = Screen::Broker;
                 match action {
                     MenuAction::Core(cmd) => app.run_command(cmd),
-                    MenuAction::Plugin { plugin, id } => app.invoke_plugin_command(plugin, id),
+                    MenuAction::Plugin { plugin, id } => app.invoke_plugin_command(plugin, &id),
                 }
             }
         }

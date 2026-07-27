@@ -9,7 +9,13 @@ use ratatui::{
     Frame,
 };
 
-pub(crate) fn draw_publish(f: &mut Frame, pb: &PublishBuffer, area: Rect, pal: &Palette) {
+pub(crate) fn draw_publish(
+    f: &mut Frame,
+    pb: &PublishBuffer,
+    save_as: Option<&str>,
+    area: Rect,
+    pal: &Palette,
+) {
     let popup = center_rect(area, 70, 40);
     f.render_widget(Clear, popup);
 
@@ -40,7 +46,7 @@ pub(crate) fn draw_publish(f: &mut Frame, pb: &PublishBuffer, area: Rect, pal: &
         lines.push(Line::from(""));
     }
     lines.push(Line::from(Span::styled(
-        "Tab: next field · space: toggle QoS/Retain · Enter: publish · Esc: cancel",
+        "Tab: field · space: toggle QoS/Retain · Enter: publish · ^T: save template · Esc: cancel",
         Style::default().fg(pal.dim),
     )));
 
@@ -48,6 +54,31 @@ pub(crate) fn draw_publish(f: &mut Frame, pb: &PublishBuffer, area: Rect, pal: &
         .block(title_block("Publish Message", pal))
         .wrap(Wrap { trim: false });
     f.render_widget(p, popup);
+
+    // "Save as template" name prompt over the form.
+    if let Some(name) = save_as {
+        let prompt = center_rect(area, 60, 20);
+        f.render_widget(Clear, prompt);
+        let lines = vec![
+            Line::from(vec![
+                Span::styled(
+                    "Template name: ",
+                    Style::default().fg(pal.accent).add_modifier(Modifier::BOLD),
+                ),
+                Span::raw(name.to_string()),
+                Span::styled("_", Style::default().fg(pal.accent)),
+            ]),
+            Line::from(""),
+            Line::from(Span::styled(
+                "saves the current topic/payload/QoS/retain · Enter: save · Esc: back",
+                Style::default().fg(pal.dim),
+            )),
+        ];
+        f.render_widget(
+            Paragraph::new(lines).block(title_block("Save Publish Template", pal)),
+            prompt,
+        );
+    }
 }
 pub(crate) fn draw_subscribe(f: &mut Frame, input: &str, area: Rect, pal: &Palette) {
     let popup = center_rect(area, 60, 20);

@@ -1,4 +1,4 @@
-use crate::app::{App, Status};
+use crate::app::{App, PublishBuffer, Screen, Status};
 use crate::config::Connection;
 use crate::mqtt::{Message, MqttCommand};
 use crate::plugin::{Annotation, PluginAction, PluginEvent};
@@ -72,6 +72,22 @@ impl App {
                 }
                 PluginAction::Unsubscribe { topic } => {
                     self.send(MqttCommand::Unsubscribe { topic });
+                }
+                PluginAction::OpenPublish {
+                    topic,
+                    payload,
+                    qos,
+                    retain,
+                } => {
+                    self.publish = PublishBuffer {
+                        topic,
+                        payload,
+                        qos,
+                        retain,
+                        field: 0,
+                    };
+                    self.publish_save_as = None;
+                    self.screen = Screen::Publish;
                 }
                 PluginAction::Status(text) => self.error = Some(text),
             }

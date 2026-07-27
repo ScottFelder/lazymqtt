@@ -50,10 +50,34 @@ impl App {
 
     pub(crate) fn open_publish(&mut self) {
         self.publish = PublishBuffer::default();
+        self.publish_save_as = None;
         if let Some(topic) = self.selected_topic() {
             self.publish.topic = topic;
         }
         self.screen = Screen::Publish;
+    }
+
+    /// Save the current publish form as a named, reusable template.
+    pub fn commit_publish_template(&mut self) {
+        let Some(name) = self.publish_save_as.take() else {
+            return;
+        };
+        let name = name.trim().to_string();
+        if name.is_empty() {
+            self.error = Some("template name required".into());
+            return;
+        }
+        let template = crate::plugin::PublishTemplate {
+            name: name.clone(),
+            topic: self.publish.topic.clone(),
+            payload: self.publish.payload.clone(),
+            qos: self.publish.qos,
+            retain: self.publish.retain,
+        };
+        match crate::plugin::save_publish_template(template) {
+            Ok(()) => self.error = Some(format!("saved template “{name}”")),
+            Err(e) => self.error = Some(format!("save failed: {e}")),
+        }
     }
 
     pub fn reset_selection(&mut self) {

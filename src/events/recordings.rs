@@ -73,15 +73,24 @@ pub(crate) fn recording_edit_keys(app: &mut App, key: KeyEvent) {
         KeyCode::Char('s') if ctrl => app.save_recording_edit_current(),
         KeyCode::Char('n') if ctrl => app.begin_recording_saveas(),
         KeyCode::Esc => app.screen = Screen::Recordings, // discard edits
-        KeyCode::Left => app.rec_edit_move_h(false),
-        KeyCode::Right => app.rec_edit_move_h(true),
-        KeyCode::Up => app.rec_edit_move_v(false),
-        KeyCode::Down => app.rec_edit_move_v(true),
-        KeyCode::Home => app.rec_edit_home(),
-        KeyCode::End => app.rec_edit_end(),
-        KeyCode::Enter => app.rec_edit_newline(),
-        KeyCode::Backspace => app.rec_edit_backspace(),
-        KeyCode::Char(c) => app.rec_edit_insert(c),
+        KeyCode::Left => app.rec_editor.move_h(false),
+        KeyCode::Right => app.rec_editor.move_h(true),
+        KeyCode::Up => app.rec_editor.move_v(false),
+        KeyCode::Down => app.rec_editor.move_v(true),
+        KeyCode::Home => app.rec_editor.home(),
+        KeyCode::End => app.rec_editor.end(),
+        KeyCode::Enter => {
+            app.rec_editor.newline();
+            app.rec_edit_error = None;
+        }
+        KeyCode::Backspace => {
+            app.rec_editor.backspace();
+            app.rec_edit_error = None;
+        }
+        KeyCode::Char(c) => {
+            app.rec_editor.insert(c);
+            app.rec_edit_error = None;
+        }
         _ => {}
     }
 }

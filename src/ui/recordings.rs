@@ -92,39 +92,7 @@ pub(crate) fn draw_recording_edit(f: &mut Frame, app: &App, area: Rect) {
         .split(inner);
     let (body, footer, errline) = (rows[0], rows[1], rows[2]);
 
-    // Scroll so the cursor stays visible (both axes derived from the cursor).
-    let text_h = body.height as usize;
-    let text_w = body.width.max(1) as usize;
-    let row_off = app.rec_edit_row.saturating_sub(text_h.saturating_sub(1));
-    let col_off = app.rec_edit_col.saturating_sub(text_w.saturating_sub(1));
-
-    let mut lines: Vec<Line> = Vec::new();
-    for r in row_off..(row_off + text_h).min(app.rec_edit_lines.len()) {
-        let chars: Vec<char> = app.rec_edit_lines[r].chars().collect();
-        if r == app.rec_edit_row {
-            // Draw the line with a block cursor at the current column.
-            let cur = app.rec_edit_col;
-            let mut spans = Vec::new();
-            let before: String = chars[col_off.min(chars.len())..cur.min(chars.len())]
-                .iter()
-                .collect();
-            spans.push(Span::raw(before));
-            let cursor_ch = chars.get(cur).copied().unwrap_or(' ');
-            spans.push(Span::styled(
-                cursor_ch.to_string(),
-                Style::default().fg(pal.selection_fg).bg(pal.accent),
-            ));
-            if cur < chars.len() {
-                let after: String = chars[(cur + 1)..].iter().take(text_w).collect();
-                spans.push(Span::raw(after));
-            }
-            lines.push(Line::from(spans));
-        } else {
-            let visible: String = chars.iter().skip(col_off).take(text_w).collect();
-            lines.push(Line::from(visible));
-        }
-    }
-    f.render_widget(Paragraph::new(lines), body);
+    draw_textarea(f, body, &app.rec_editor, true, pal);
 
     let hint = "arrows: move · Enter: split line · ^S: save · ^N: save as · Esc: cancel";
     f.render_widget(

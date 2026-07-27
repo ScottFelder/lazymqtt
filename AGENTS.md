@@ -44,7 +44,8 @@ app/         The App state object + its behavior, one submodule per concern.
   connection.rs  connect/disconnect, send, push_message, plugin dispatch.
   commands.rs  the command registry entry point + `m`-menu building.
   broker.rs    topic selection, payload/history line building, text selection.
-  alerts.rs / recordings.rs / theme.rs   each screen's App-side logic.
+  alerts.rs / schemas.rs / recordings.rs / theme.rs  each screen's App-side logic.
+  textarea.rs  reusable multi-line text buffer + cursor (recording & schema editors).
 config.rs    Connection + Subscription structs; JSON persistence to disk.
 paths.rs     Config dir (~/.config/lazymqtt, XDG on every OS) + one-time
              migration from the old macOS Application Support location.
@@ -66,8 +67,10 @@ plugin/      In-process plugin API + host + built-in plugins.
   api.rs       PluginEvent / PluginAction / Annotation / Inspector* types.
   config.rs    per-plugin enable/disable, persisted under plugins/.
   builtin/     bundled plugins (json-marker, json-view, topic-alerts,
-               json-schema, topic-recorder).
+               json-schema, publish-templates, topic-recorder).
   topics.rs    shared MQTT topic-filter matching (`+`/`#`).
+  schemas.rs   per-connection topic→schema mappings + subset validator.
+  templates.rs global publish presets (topic/payload/QoS/retain).
 ```
 
 `App`'s methods are split across `app/*.rs` as separate `impl App` blocks; the
@@ -198,9 +201,22 @@ connected re-dispatches `Connected` to reload live.
 
 `json-schema` follows the same per-connection pattern: topic→schema mappings in
 `plugins/schemas/<connection-id>.json` loaded on `Connected` (model + a
-dependency-free subset validator in `plugin/schemas.rs`). It has no in-app
-editor yet — schemas are hand-edited. Both it and `topic-alerts` match topics
-via `plugin/topics.rs::matches` (don't duplicate wildcard logic).
+dependency-free subset validator in `plugin/schemas.rs`), edited in-app via
+`Screen::Schemas`/`SchemaForm` (`S`), which persists and re-dispatches
+`Connected` to reload live — exactly like the alerts editor. Both it and
+`topic-alerts` match topics via `plugin/topics.rs::matches` (don't duplicate
+wildcard logic).
+
+`publish-templates` stores **global** presets in `plugins/publish-templates.json`
+(`plugin/templates.rs`) and surfaces each as an `m`-menu command whose `id` is
+the template name (this is why `PluginCommand.id`/`MenuAction::Plugin.id` are
+`String`, not `&'static str`). Invoking one emits `PluginAction::OpenPublish`,
+which the app applies by pre-filling the publish form; `^T` there saves the
+current form back as a template.
+
+Multi-line editors (recording JSONL, schema body) share `app/textarea.rs`
+(`TextArea`: buffer + char cursor) and render through `ui::common::draw_textarea`
+— reuse those rather than re-implementing cursor math.
 
 `topic-recorder` records the active connection's `MessageReceived` events to
 `plugins/recordings/<connection-id>-<label>.jsonl` (one `RecordedMessage` per
