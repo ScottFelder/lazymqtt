@@ -16,6 +16,7 @@ use std::path::PathBuf;
 use std::time::{Duration, Instant};
 
 const NAME: &str = "payload-generator";
+const NONE_ID: &str = "__none__"; // placeholder command id when no generators exist
 
 #[derive(Default)]
 pub struct PayloadGenerator {
@@ -59,7 +60,15 @@ impl Plugin for PayloadGenerator {
     }
 
     /// One command per generator: streams toggle ▶/■; one-shots publish on Enter.
+    /// When none are defined, a hint row keeps the enabled plugin visible.
     fn commands(&self) -> Vec<PluginCommand> {
+        if self.generators.is_empty() {
+            return vec![PluginCommand::action(
+                NONE_ID,
+                "↑",
+                "No generators — define them in plugins/generators.json",
+            )];
+        }
         self.generators
             .iter()
             .map(|g| {
@@ -88,6 +97,11 @@ impl Plugin for PayloadGenerator {
     }
 
     fn invoke(&mut self, id: &str) -> Vec<PluginAction> {
+        if id == NONE_ID {
+            return vec![PluginAction::Status(
+                "define generators in plugins/generators.json, then reconnect".into(),
+            )];
+        }
         let Some(gen) = self.generators.iter().find(|g| g.name == id).cloned() else {
             return Vec::new();
         };

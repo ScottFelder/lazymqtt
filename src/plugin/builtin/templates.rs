@@ -11,6 +11,7 @@ use crate::plugin::{templates, Plugin};
 use std::path::PathBuf;
 
 const NAME: &str = "publish-templates";
+const NONE_ID: &str = "__none__"; // placeholder command id when no templates exist
 
 #[derive(Default)]
 pub struct PublishTemplates {
@@ -36,15 +37,31 @@ impl Plugin for PublishTemplates {
     }
 
     /// One command per template, read fresh so newly-saved templates appear
-    /// without a restart. The command id is the template name.
+    /// without a restart. The command id is the template name. When there are no
+    /// templates yet, show a hint row so the enabled plugin is still visible and
+    /// tells you where to add them.
     fn commands(&self) -> Vec<PluginCommand> {
-        templates::load(&self.config_dir)
+        let templates = templates::load(&self.config_dir);
+        if templates.is_empty() {
+            return vec![PluginCommand::action(
+                NONE_ID,
+                "↥",
+                "No templates — save one with ^T on the publish form",
+            )];
+        }
+        templates
             .into_iter()
             .map(|t| PluginCommand::action(t.name.clone(), "↥", format!("Publish: {}", t.name)))
             .collect()
     }
 
     fn invoke(&mut self, id: &str) -> Vec<PluginAction> {
+        if id == NONE_ID {
+            return vec![PluginAction::Status(
+                "add templates with ^T on the publish form, or edit plugins/publish-templates.json"
+                    .into(),
+            )];
+        }
         match templates::load(&self.config_dir)
             .into_iter()
             .find(|t| t.name == id)
