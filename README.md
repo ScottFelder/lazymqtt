@@ -97,10 +97,11 @@ instances (or a leftover) never collide on the broker.
 
 Plugins are compiled into the binary and run in-process. They observe events
 (message received, connect/disconnect, tick, …) and respond with actions
-(annotate a message, publish, subscribe, show a status) or supply an alternative
-Payload rendering — without touching connection state directly. Every plugin is
-**disabled by default**; enable the ones you want on the Plugins screen (`P`).
-The choice persists in `plugins/config.json`.
+(annotate a message, publish, subscribe, show a status), supply an alternative
+Payload rendering, or own a whole pane (a dashboard) — without touching
+connection state or the terminal directly. Every plugin is **disabled by
+default**; enable the ones you want on the Plugins screen (`P`). The choice
+persists in `plugins/config.json`.
 
 Built-in plugins, each with its own demo:
 
@@ -121,6 +122,8 @@ Built-in plugins, each with its own demo:
 **publish-templates** — saved topic/payload/QoS/retain presets. Each appears in the `m` menu; picking one opens the publish form pre-filled so you can tweak `{{placeholders}}` and review before sending. Save the current publish form as a template with `^T`.
 
 **payload-generator** — publishes synthetic payloads for exercising subscribers: counters, random values, timestamps (optionally wrapped in a JSON `template`). Each generator is an `m`-menu command; a one-shot publishes once, a streaming generator (`interval_ms`) toggles on/off and fires at its rate. Configured in `plugins/generators.json`.
+
+**traffic-analytics** — a live stats dashboard in its own pane (open "Traffic analytics" from the `m` menu): message rate + peak with a sparkline, total/throughput, QoS mix, retained share, and a busiest-topics bar chart. Updates every frame; resets per connection.
 
 **topic-recorder** — records the connection's traffic to a file and replays it back to the broker, preserving timing; a picker (`R`) replays/renames/deletes individual recordings.
 
@@ -176,7 +179,7 @@ practical subset of JSON Schema — `type` (incl. `integer` and arrays of types)
 `minLength`/`maxLength`, `minItems`/`maxItems` — and ignores keywords it doesn't
 recognize.
 
-See `FEATURES.md` for the plugin roadmap (traffic analytics, ecosystem
+See `FEATURES.md` for the plugin roadmap (message-transform pipeline, ecosystem
 decoders, external-process/WASM loading, …).
 
 ## Theming
@@ -221,10 +224,11 @@ src/
     mod.rs       Plugin trait + PluginHost
     api.rs       event/action/annotation/inspector types
     config.rs    per-plugin enable/disable persistence
-    schemas.rs / alerts_rules.rs / recordings.rs / templates.rs / topics.rs
-                 shared models + validators + topic matching
+    schemas.rs / alerts_rules.rs / recordings.rs / templates.rs /
+    generators.rs / topics.rs   shared models + validators + topic matching
     builtin/     bundled plugins (json-marker, json-view, topic-alerts,
-                 json-schema, publish-templates, topic-recorder)
+                 json-schema, publish-templates, payload-generator,
+                 traffic-analytics, topic-recorder)
 ```
 
 ## License

@@ -8,6 +8,7 @@ mod common;
 mod connections;
 mod help;
 mod menu;
+mod pane;
 mod plugins;
 mod publish;
 mod recordings;
@@ -58,6 +59,7 @@ pub fn draw(f: &mut Frame, app: &App) {
         Screen::Recordings => recordings::draw_recordings(f, app, chunks[0]),
         Screen::RecordingEdit => recordings::draw_recording_edit(f, app, chunks[0]),
         Screen::Theme => theme::draw_theme(f, app, chunks[0]),
+        Screen::PluginPane => pane::draw_plugin_pane(f, app, chunks[0]),
         Screen::CommandMenu => {
             broker::draw_broker(f, app, chunks[0]);
             menu::draw_command_menu(f, app, chunks[0]);

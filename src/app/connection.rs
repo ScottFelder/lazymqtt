@@ -89,6 +89,9 @@ impl App {
                     self.publish_save_as = None;
                     self.screen = Screen::Publish;
                 }
+                // Opening a pane is resolved in `invoke_plugin_command`, where
+                // the emitting plugin's index is known; a no-op here.
+                PluginAction::OpenPane => {}
                 PluginAction::Status(text) => self.error = Some(text),
             }
         }

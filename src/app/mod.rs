@@ -117,6 +117,9 @@ pub struct App {
     pub palette: Palette,
     pub theme_selected: usize,
     pub theme_edit: Option<String>,
+
+    /// Which plugin's pane the `PluginPane` screen shows (its slot index).
+    pub pane_plugin: usize,
     // Which Payload-pane view is active: 0 = raw text, 1.. = plugin inspector
     // views (in plugin order). Clamped when fewer views are available.
     pub payload_view: usize,
@@ -145,6 +148,7 @@ impl App {
             palette,
             theme_selected: 0,
             theme_edit: None,
+            pane_plugin: 0,
             screen: Screen::Connections,
             focus: Focus::Tree,
             collapsed: PaneFold::None,
