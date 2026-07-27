@@ -65,7 +65,9 @@ plugin/      In-process plugin API + host + built-in plugins.
   mod.rs       Plugin trait, PluginHost (dispatch, enable/disable, inspect).
   api.rs       PluginEvent / PluginAction / Annotation / Inspector* types.
   config.rs    per-plugin enable/disable, persisted under plugins/.
-  builtin/     bundled plugins (json-marker, json-view, topic-alerts, topic-recorder).
+  builtin/     bundled plugins (json-marker, json-view, topic-alerts,
+               json-schema, topic-recorder).
+  topics.rs    shared MQTT topic-filter matching (`+`/`#`).
 ```
 
 `App`'s methods are split across `app/*.rs` as separate `impl App` blocks; the
@@ -193,6 +195,12 @@ the single-binary, small-dependency goal.
 reused by the in-app editor reached with `A`). `PluginEvent::Connected` carries
 the connection id so the plugin loads that connection's rules; editing while
 connected re-dispatches `Connected` to reload live.
+
+`json-schema` follows the same per-connection pattern: topic→schema mappings in
+`plugins/schemas/<connection-id>.json` loaded on `Connected` (model + a
+dependency-free subset validator in `plugin/schemas.rs`). It has no in-app
+editor yet — schemas are hand-edited. Both it and `topic-alerts` match topics
+via `plugin/topics.rs::matches` (don't duplicate wildcard logic).
 
 `topic-recorder` records the active connection's `MessageReceived` events to
 `plugins/recordings/<connection-id>-<label>.jsonl` (one `RecordedMessage` per

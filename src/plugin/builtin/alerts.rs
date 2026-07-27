@@ -11,7 +11,7 @@
 
 use crate::plugin::alerts_rules::{self, AlertCondition, AlertRule};
 use crate::plugin::api::{Annotation, PluginAction, PluginContext, PluginEvent, PluginMetadata};
-use crate::plugin::Plugin;
+use crate::plugin::{topics, Plugin};
 use std::collections::HashMap;
 use std::path::PathBuf;
 
@@ -87,7 +87,7 @@ impl TopicAlerts {
             let sev = self.rules[i].severity;
             let field = self.rules[i].field.clone();
             let filter = self.rules[i].topic.clone();
-            if !topic_matches(&filter, topic) {
+            if !topics::matches(&filter, topic) {
                 continue;
             }
             match cond {
@@ -198,34 +198,6 @@ fn value_as_number(v: &serde_json::Value) -> Option<f64> {
         .or_else(|| v.as_str().and_then(|s| s.trim().parse::<f64>().ok()))
 }
 
-/// MQTT topic-filter match (`+` one level, `#` the rest).
-fn topic_matches(filter: &str, topic: &str) -> bool {
-    let f: Vec<&str> = filter.split('/').collect();
-    let t: Vec<&str> = topic.split('/').collect();
-    let mut fi = 0;
-    let mut ti = 0;
-    while fi < f.len() {
-        match f[fi] {
-            "#" => return true,
-            "+" => {
-                if ti >= t.len() {
-                    return false;
-                }
-                fi += 1;
-                ti += 1;
-            }
-            seg => {
-                if ti >= t.len() || t[ti] != seg {
-                    return false;
-                }
-                fi += 1;
-                ti += 1;
-            }
-        }
-    }
-    ti == t.len()
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -247,17 +219,6 @@ mod tests {
             severity,
             cond,
         }
-    }
-
-    #[test]
-    fn topic_wildcards() {
-        assert!(topic_matches("a/b", "a/b"));
-        assert!(!topic_matches("a/b", "a/c"));
-        assert!(topic_matches("a/+/c", "a/x/c"));
-        assert!(!topic_matches("a/+/c", "a/x/y"));
-        assert!(topic_matches("a/#", "a/b/c"));
-        assert!(topic_matches("a/#", "a"));
-        assert!(!topic_matches("a/#", "b"));
     }
 
     #[test]

@@ -115,6 +115,8 @@ Built-in plugins, each with its own demo:
 
 ![topic-alerts demo](assets/topic-alerts.gif)
 
+**json-schema** — validates each message against a **per-connection** JSON Schema mapped by topic filter, annotating it valid (✓) or invalid (✗, with the failing path) and flagging the failure in the status bar.
+
 **topic-recorder** — records the connection's traffic to a file and replays it back to the broker, preserving timing; a picker (`R`) replays/renames/deletes individual recordings.
 
 ![topic-recorder demo](assets/topic-recorder.gif)
@@ -156,7 +158,17 @@ and indexes arrays (e.g. `data.sensors.0.temp`); without it the whole payload is
 used. JSON numbers and numeric strings (`"85"`) both work. Severity is `warn`
 (default) or `error`. Alerts are visual only — no commands are run.
 
-See `FEATURES.md` for the plugin roadmap (schema validation, analytics,
+JSON Schemas are also **per connection**, stored at
+`plugins/schemas/<connection-id>.json` (hand-editable) as a list of
+`{ "topic": "<filter>", "schema": { … } }` mappings; a message is validated
+against the first mapping whose topic filter matches. The validator covers a
+practical subset of JSON Schema — `type` (incl. `integer` and arrays of types),
+`required`, `properties`, `items`, `enum`, `const`,
+`minimum`/`maximum`/`exclusiveMinimum`/`exclusiveMaximum`,
+`minLength`/`maxLength`, `minItems`/`maxItems` — and ignores keywords it doesn't
+recognize.
+
+See `FEATURES.md` for the plugin roadmap (publish templates, analytics,
 external-process/WASM loading, …).
 
 ## Theming
