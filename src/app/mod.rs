@@ -9,12 +9,15 @@ mod commands;
 mod connection;
 mod forms;
 mod recordings;
+mod schemas;
 mod screen;
+mod textarea;
 mod theme;
 mod view;
 
-pub use forms::{AlertForm, FormBuffer, PublishBuffer, Status};
+pub use forms::{AlertForm, FormBuffer, PublishBuffer, SchemaForm, Status};
 pub use screen::{Command, MenuAction, MenuItem, Screen, BROKER_COMMANDS};
+pub use textarea::TextArea;
 pub use view::{DetailKind, DetailLine, Focus, PaneFold};
 
 use crate::config::Config;
@@ -34,6 +37,9 @@ pub struct App {
     pub conn_selected: usize,
     pub form: FormBuffer,
     pub publish: PublishBuffer,
+    /// When `Some`, the publish form is prompting for a name to save the current
+    /// topic/payload/QoS/retain as a reusable template (the buffer is the name).
+    pub publish_save_as: Option<String>,
 
     pub active: Option<usize>, // index into config.connections
     pub handle: Option<MqttHandle>,
@@ -84,17 +90,23 @@ pub struct App {
     pub recordings_conn_name: String,
     pub recording_rename: Option<String>,
 
-    // Recording editor (multi-line text edit of one recording's JSONL, opened
-    // from the picker with `e`). `rec_edit_lines` is the editable content — one
-    // message per line — and `rec_edit_row`/`rec_edit_col` the char-addressed
-    // cursor. `rec_edit_label` is the recording being edited (the Save target).
-    // `rec_edit_saveas`, when Some, holds the "save as" filename buffer.
-    pub rec_edit_lines: Vec<String>,
-    pub rec_edit_row: usize,
-    pub rec_edit_col: usize,
+    // Recording editor (multi-line JSONL edit, opened from the picker with `e`).
+    // `rec_editor` holds the editable text; `rec_edit_label` is the recording
+    // being edited (the Save target); `rec_edit_saveas`, when Some, holds the
+    // "save as" filename buffer.
+    pub rec_editor: TextArea,
     pub rec_edit_label: String,
     pub rec_edit_error: Option<String>,
     pub rec_edit_saveas: Option<String>,
+
+    // JSON Schema editor (per connection). `schemas` is the working copy for the
+    // connection identified by `schema_edit_conn` (name in `schema_edit_name`);
+    // `schemas_selected` is the list cursor; `schema_form` backs the add/edit form.
+    pub schemas: Vec<crate::plugin::SchemaMapping>,
+    pub schemas_selected: usize,
+    pub schema_edit_conn: String,
+    pub schema_edit_name: String,
+    pub schema_form: SchemaForm,
 
     // Theming. `theme` is the editable spec set; `palette` is its resolved
     // ratatui colors, which the renderer reads (recomputed on every change).
@@ -140,6 +152,7 @@ impl App {
             conn_selected: 0,
             form: FormBuffer::default(),
             publish: PublishBuffer::default(),
+            publish_save_as: None,
             active: None,
             handle: None,
             status: Status::Idle,
@@ -167,12 +180,15 @@ impl App {
             recordings_conn: String::new(),
             recordings_conn_name: String::new(),
             recording_rename: None,
-            rec_edit_lines: Vec::new(),
-            rec_edit_row: 0,
-            rec_edit_col: 0,
+            rec_editor: TextArea::default(),
             rec_edit_label: String::new(),
             rec_edit_error: None,
             rec_edit_saveas: None,
+            schemas: Vec::new(),
+            schemas_selected: 0,
+            schema_edit_conn: String::new(),
+            schema_edit_name: String::new(),
+            schema_form: SchemaForm::default(),
             payload_view: 0,
             error: None,
             sel_cursor: (0, 0),
@@ -198,13 +214,6 @@ fn severity_rank(severity: Severity) -> u8 {
         Severity::Warn => 2,
         Severity::Error => 3,
     }
-}
-
-/// Byte index of the `col`-th character in `s`, or `s.len()` if past the end.
-/// Lets the recording editor address the cursor in characters while editing a
-/// UTF-8 `String`.
-fn char_byte_idx(s: &str, col: usize) -> usize {
-    s.char_indices().nth(col).map(|(b, _)| b).unwrap_or(s.len())
 }
 
 /// A single header marker segment summarizing a message's annotations, taking
@@ -425,36 +434,6 @@ mod tests {
         assert!(app.annotations_for(1).is_empty()); // sensor/temp's annotation
         assert!(app.annotations_for(2).is_empty()); // sensor/humidity's annotation
         assert!(!app.annotations_for(3).is_empty()); // status kept its annotation
-    }
-
-    #[test]
-    fn char_byte_idx_handles_unicode() {
-        assert_eq!(char_byte_idx("aé", 0), 0);
-        assert_eq!(char_byte_idx("aé", 1), 1);
-        assert_eq!(char_byte_idx("aé", 2), 3); // é is two bytes
-        assert_eq!(char_byte_idx("aé", 9), 3); // past the end clamps to len
-    }
-
-    #[test]
-    fn recording_editor_insert_split_and_join() {
-        let mut app = App::new();
-        app.rec_edit_lines = vec!["ab".to_string()];
-        app.rec_edit_row = 0;
-        app.rec_edit_col = 1; // between 'a' and 'b'
-
-        app.rec_edit_insert('X');
-        assert_eq!(app.rec_edit_lines, vec!["aXb".to_string()]);
-        assert_eq!(app.rec_edit_col, 2);
-
-        // Enter splits the line at the cursor.
-        app.rec_edit_newline();
-        assert_eq!(app.rec_edit_lines, vec!["aX".to_string(), "b".to_string()]);
-        assert_eq!((app.rec_edit_row, app.rec_edit_col), (1, 0));
-
-        // Backspace at column 0 joins with the previous line.
-        app.rec_edit_backspace();
-        assert_eq!(app.rec_edit_lines, vec!["aXb".to_string()]);
-        assert_eq!((app.rec_edit_row, app.rec_edit_col), (0, 2));
     }
 
     #[test]

@@ -1,8 +1,10 @@
 //! Editable buffers backing the input screens (connection form, publish,
-//! alert-rule form) plus the connection `Status` enum.
+//! alert-rule form, schema form) plus the connection `Status` enum.
 
+use crate::app::TextArea;
 use crate::config::Connection;
-use crate::plugin::{AlertCondition, AlertRule, AlertSeverity};
+use crate::plugin::{AlertCondition, AlertRule, AlertSeverity, SchemaMapping};
+use serde_json::Value;
 
 pub enum Status {
     Idle,
@@ -141,6 +143,60 @@ impl AlertForm {
                 AlertSeverity::Warn
             },
             cond,
+        })
+    }
+}
+
+/// Editable buffer backing the schema form: a topic filter plus a multi-line
+/// JSON editor for the schema body. `focus` is 0 for the topic field, 1 for the
+/// schema editor.
+pub struct SchemaForm {
+    pub editing_index: Option<usize>, // None = adding a new mapping
+    pub topic: String,
+    pub body: TextArea,
+    pub focus: usize,
+    pub error: Option<String>,
+}
+
+impl Default for SchemaForm {
+    fn default() -> Self {
+        Self {
+            editing_index: None,
+            topic: String::new(),
+            body: TextArea::from_text("{\n  \"type\": \"object\"\n}"),
+            focus: 0,
+            error: None,
+        }
+    }
+}
+
+impl SchemaForm {
+    pub const FIELD_COUNT: usize = 2; // topic, body
+
+    /// A form editing the mapping at `index`, seeded with its pretty-printed schema.
+    pub fn from_mapping(index: usize, mapping: &SchemaMapping) -> Self {
+        let body =
+            serde_json::to_string_pretty(&mapping.schema).unwrap_or_else(|_| "{}".to_string());
+        Self {
+            editing_index: Some(index),
+            topic: mapping.topic.clone(),
+            body: TextArea::from_text(&body),
+            focus: 0,
+            error: None,
+        }
+    }
+
+    /// Build a `SchemaMapping` from the form, validating the topic is present
+    /// and the body parses as JSON.
+    pub fn to_mapping(&self) -> Result<SchemaMapping, String> {
+        if self.topic.trim().is_empty() {
+            return Err("topic filter is required".into());
+        }
+        let schema: Value =
+            serde_json::from_str(&self.body.text()).map_err(|e| format!("invalid JSON: {e}"))?;
+        Ok(SchemaMapping {
+            topic: self.topic.trim().to_string(),
+            schema,
         })
     }
 }

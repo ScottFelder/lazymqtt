@@ -11,6 +11,7 @@ mod menu;
 mod plugins;
 mod publish;
 mod recordings;
+mod schemas;
 mod statusbar;
 mod theme;
 
@@ -33,7 +34,13 @@ pub fn draw(f: &mut Frame, app: &App) {
         Screen::Broker => broker::draw_broker(f, app, chunks[0]),
         Screen::Publish => {
             broker::draw_broker(f, app, chunks[0]);
-            publish::draw_publish(f, &app.publish, chunks[0], pal);
+            publish::draw_publish(
+                f,
+                &app.publish,
+                app.publish_save_as.as_deref(),
+                chunks[0],
+                pal,
+            );
         }
         Screen::Subscribe => {
             broker::draw_broker(f, app, chunks[0]);
@@ -46,6 +53,8 @@ pub fn draw(f: &mut Frame, app: &App) {
         Screen::Plugins => plugins::draw_plugins(f, app, chunks[0]),
         Screen::AlertRules => alerts::draw_alert_rules(f, app, chunks[0]),
         Screen::AlertRuleForm => alerts::draw_alert_rule_form(f, app, chunks[0]),
+        Screen::Schemas => schemas::draw_schemas(f, app, chunks[0]),
+        Screen::SchemaForm => schemas::draw_schema_form(f, app, chunks[0]),
         Screen::Recordings => recordings::draw_recordings(f, app, chunks[0]),
         Screen::RecordingEdit => recordings::draw_recording_edit(f, app, chunks[0]),
         Screen::Theme => theme::draw_theme(f, app, chunks[0]),

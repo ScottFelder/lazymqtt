@@ -131,6 +131,7 @@ pub(crate) fn broker_keys(app: &mut App, key: KeyEvent) {
         KeyCode::Char('i') => app.cycle_payload_view(),
         KeyCode::Char('P') => app.run_command(Command::Plugins),
         KeyCode::Char('A') => app.run_command(Command::AlertRules),
+        KeyCode::Char('S') => app.run_command(Command::Schemas),
         KeyCode::Char('R') => app.run_command(Command::Recordings),
         KeyCode::Char('T') => app.run_command(Command::Theme),
         _ => {}
