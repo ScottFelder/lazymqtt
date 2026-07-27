@@ -16,6 +16,7 @@ pub enum Screen {
     Recordings,
     RecordingEdit,
     Theme,
+    PluginPane,
     CommandMenu,
     Help,
 }

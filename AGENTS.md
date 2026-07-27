@@ -67,7 +67,8 @@ plugin/      In-process plugin API + host + built-in plugins.
   api.rs       PluginEvent / PluginAction / Annotation / Inspector* types.
   config.rs    per-plugin enable/disable, persisted under plugins/.
   builtin/     bundled plugins (json-marker, json-view, topic-alerts,
-               json-schema, publish-templates, payload-generator, topic-recorder).
+               json-schema, publish-templates, payload-generator,
+               traffic-analytics, topic-recorder).
   topics.rs    shared MQTT topic-filter matching (`+`/`#`).
   schemas.rs   per-connection topic→schema mappings + subset validator.
   templates.rs global publish presets (topic/payload/QoS/retain).
@@ -186,6 +187,12 @@ only what it needs:
 - `commands(&self) -> Vec<PluginCommand>` / `invoke(&mut self, id) -> Vec<PluginAction>`
   — contribute entries to the `m` command menu and handle them. Labels are
   computed in `commands()` so they can reflect state ("Stop recording (N msgs)").
+- `pane(&self) -> Option<PaneView>` — own a whole screen (a dashboard of styled
+  `PaneSpan` lines, still UI-agnostic — no ratatui). Rendered fresh each frame
+  in `Screen::PluginPane`. A plugin opens its pane by returning
+  `PluginAction::OpenPane` from a command; `App::invoke_plugin_command` resolves
+  which plugin (it knows the index) and sets `pane_plugin`. See
+  `builtin/analytics.rs` for the traffic-analytics example.
 
 Keep the boundary UI-agnostic: events carry owned data, actions are the only way
 to affect the app, and annotations attach to a message by id. Execution is

@@ -13,7 +13,7 @@ mod theme;
 
 use crate::app::{App, Screen};
 use connections::field_mut; // shared by the form-paste path
-use crossterm::event::KeyEvent;
+use crossterm::event::{KeyCode, KeyEvent};
 
 pub fn handle_key(app: &mut App, key: KeyEvent) {
     app.error = None;
@@ -32,6 +32,11 @@ pub fn handle_key(app: &mut App, key: KeyEvent) {
         Screen::Recordings => recordings::recordings_keys(app, key),
         Screen::RecordingEdit => recordings::recording_edit_keys(app, key),
         Screen::Theme => theme::theme_keys(app, key),
+        Screen::PluginPane => {
+            if matches!(key.code, KeyCode::Esc | KeyCode::Char('q')) {
+                app.screen = Screen::Broker;
+            }
+        }
         Screen::CommandMenu => menu::command_menu_keys(app, key),
         Screen::Help => {
             app.screen = if app.handle.is_some() {

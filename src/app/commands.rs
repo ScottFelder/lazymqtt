@@ -40,9 +40,17 @@ impl App {
         self.screen = Screen::CommandMenu;
     }
 
-    /// Invoke a plugin command from the menu and apply its actions.
+    /// Invoke a plugin command from the menu and apply its actions. `OpenPane`
+    /// is resolved here — we know the emitting plugin's index at this call site.
     pub fn invoke_plugin_command(&mut self, plugin: usize, id: &str) {
         let actions = self.plugins.invoke(plugin, id);
+        if actions
+            .iter()
+            .any(|a| matches!(a, crate::plugin::PluginAction::OpenPane))
+        {
+            self.pane_plugin = plugin;
+            self.screen = Screen::PluginPane;
+        }
         self.apply_plugin_actions(actions);
     }
 

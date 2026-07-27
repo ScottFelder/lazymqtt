@@ -27,8 +27,8 @@ mod topics;
 
 pub use alerts_rules::{AlertCondition, AlertRule, AlertSeverity};
 pub use api::{
-    Annotation, InspectMessage, InspectorStyle, InspectorView, PluginAction, PluginCommand,
-    PluginContext, PluginEvent, PluginMetadata, Severity,
+    Annotation, InspectMessage, InspectorStyle, InspectorView, PaneStyle, PaneView, PluginAction,
+    PluginCommand, PluginContext, PluginEvent, PluginMetadata, Severity,
 };
 pub use recordings::Recording;
 pub use schemas::SchemaMapping;
@@ -157,6 +157,13 @@ pub trait Plugin {
     fn use_item(&mut self, _name: &str) -> Vec<PluginAction> {
         Vec::new()
     }
+
+    /// A whole-screen view this plugin owns (e.g. a dashboard). Rendered fresh
+    /// each frame while its pane is open. Default: no pane. A plugin exposes its
+    /// pane by returning `PluginAction::OpenPane` from a command.
+    fn pane(&self) -> Option<PaneView> {
+        None
+    }
 }
 
 struct Slot {
@@ -284,6 +291,14 @@ impl PluginHost {
             Some(slot) => slot.plugin.use_item(item),
             None => Vec::new(),
         }
+    }
+
+    /// The pane view for the enabled plugin at `index`, if it provides one.
+    pub fn pane(&self, index: usize) -> Option<PaneView> {
+        self.slots
+            .get(index)
+            .filter(|s| s.enabled)
+            .and_then(|s| s.plugin.pane())
     }
 
     /// Name + enabled state for every plugin (for the management view).
