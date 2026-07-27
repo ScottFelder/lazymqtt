@@ -36,6 +36,7 @@ pub(crate) fn draw_help(f: &mut Frame, app: &App, area: Rect) {
         Line::from("  p            publish        ·   c        clear tree"),
         Line::from("  x            clear selected topic (from view) ·  r  clear retained msg"),
         Line::from("  A            edit alert rules (per connection) · P  plugins"),
+        Line::from("  S            edit JSON schemas (per connection)"),
         Line::from("  R            recordings — replay, edit, rename, delete"),
         Line::from("  T            theme — pick a preset or edit each color"),
         Line::from("  Esc          disconnect     ·   ?        this help"),

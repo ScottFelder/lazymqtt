@@ -80,6 +80,14 @@ pub enum PluginAction {
     Unsubscribe {
         topic: String,
     },
+    /// Open the publish form pre-filled (e.g. from a saved publish template) so
+    /// the user can review/tweak before sending.
+    OpenPublish {
+        topic: String,
+        payload: String,
+        qos: u8,
+        retain: bool,
+    },
     /// Show a transient message in the status bar.
     Status(String),
 }
@@ -102,7 +110,9 @@ pub struct PluginMetadata {
 /// open with a refreshed label, instead of Enter running a one-shot action.
 #[derive(Debug, Clone)]
 pub struct PluginCommand {
-    pub id: &'static str,
+    /// Stable handle passed back to `invoke`/`adjust`. `String` (not `&'static
+    /// str`) so a plugin can key commands on dynamic items — e.g. a template name.
+    pub id: String,
     pub label: String,
     pub glyph: &'static str,
     pub adjustable: bool,
@@ -110,9 +120,9 @@ pub struct PluginCommand {
 
 impl PluginCommand {
     /// A one-shot command (Enter runs it and closes the menu).
-    pub fn action(id: &'static str, glyph: &'static str, label: impl Into<String>) -> Self {
+    pub fn action(id: impl Into<String>, glyph: &'static str, label: impl Into<String>) -> Self {
         Self {
-            id,
+            id: id.into(),
             glyph,
             label: label.into(),
             adjustable: false,
@@ -120,9 +130,9 @@ impl PluginCommand {
     }
 
     /// An option-cycling command (left/right or `h`/`l` cycle it in place).
-    pub fn option(id: &'static str, glyph: &'static str, label: impl Into<String>) -> Self {
+    pub fn option(id: impl Into<String>, glyph: &'static str, label: impl Into<String>) -> Self {
         Self {
-            id,
+            id: id.into(),
             glyph,
             label: label.into(),
             adjustable: true,
