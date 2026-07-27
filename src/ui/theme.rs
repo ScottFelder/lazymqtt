@@ -46,7 +46,7 @@ pub(crate) fn draw_theme(f: &mut Frame, app: &App, area: Rect) {
 
     let list = List::new(items)
         .block(title_block(
-            "Theme — Enter: apply preset / edit color · s: save",
+            "Theme — Enter: apply preset / edit color · changes save automatically",
             pal,
         ))
         .highlight_style(

@@ -187,7 +187,8 @@ bar background, …), each with a live swatch.
 
 - `Enter` on a preset applies it; `Enter` (or `e`) on a color role edits it —
   type a color name (`cyan`, `red`, `default`, …) or a `#rrggbb` hex value.
-- Changes preview live across the whole app; press `s` to save.
+- Changes apply live across the whole app and are **saved automatically** (no
+  separate save step; `s` re-saves if you want the reassurance).
 
 Your theme is stored at `~/.config/lazymqtt/theme.json` as a `role → color` map,
 so it's hand-editable too. With no file, the Default theme is used.
