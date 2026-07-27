@@ -64,7 +64,7 @@ instances (or a leftover) never collide on the broker.
 **Broker — Topics pane** (`1`)
 | Key | Action |
 |-----|--------|
-| `m` | command menu — all broker commands, scroll + Enter |
+| `m` | command menu — core commands + a submenu (`▸`) per plugin; scroll + Enter, `→`/`←` descend/back |
 | `j`/`k` or ↑/↓ | move in tree |
 | `Enter` | expand/collapse · `→` expand · `←` collapse |
 | `Tab` | cycle panes · `1`/`2`/`3` focus Topics/Payload/History |
@@ -137,8 +137,9 @@ Built-in plugins, each with its own demo:
 
 ![topic-recorder demo](assets/topic-recorder.gif)
 
-Some plugins add commands to the command menu (`m`). The recorder is driven
-entirely from there: **Start/Stop recording**, **Replay newest recording**, and
+Plugins that expose commands appear in the `m` menu as their own submenu
+(a `▸` row per plugin — `Enter`/`→` opens it, `Esc`/`←` goes back). The recorder
+submenu, for example, has **Start/Stop recording**, **Replay newest recording**, and
 option cyclers for **loop**, topic **prefix** (`replay/` on/off), and **speed**
 (1x / 2x / 5x). Option rows are marked `‹ ›` and cycle in place with the
 left/right arrows (or `h`/`l`), leaving the menu open. Recordings are written

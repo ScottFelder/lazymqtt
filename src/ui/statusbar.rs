@@ -35,7 +35,10 @@ pub(crate) fn draw_statusbar(f: &mut Frame, app: &App, area: Rect) {
         Screen::Publish => "Tab:field Enter:publish Esc:cancel",
         Screen::Subscribe => "Enter:subscribe Esc:cancel",
         Screen::ClearRetained => "y/Enter:clear retained  n/Esc:cancel",
-        Screen::CommandMenu => "j/k:move ←/→:cycle option Enter:run Esc:close",
+        Screen::CommandMenu if app.menu_plugin.is_some() => {
+            "j/k:move Enter/→:run ←/Esc:back ←/→:cycle option"
+        }
+        Screen::CommandMenu => "j/k:move Enter/→:open Esc:close",
         Screen::Plugins => "j/k:move space/Enter:toggle Esc:back",
         Screen::AlertRules => "j/k:move a:add e:edit d:delete Esc:back",
         Screen::Schemas => "j/k:move a:add e:edit d:delete Esc:back",

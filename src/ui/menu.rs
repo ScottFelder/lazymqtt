@@ -38,8 +38,13 @@ pub(crate) fn draw_command_menu(f: &mut Frame, app: &App, area: Rect) {
         })
         .collect();
 
+    // Top level is "Commands"; a plugin submenu shows the plugin's name.
+    let title = match app.menu_plugin_name() {
+        Some(name) => format!("{name} ▸"),
+        None => "Commands".to_string(),
+    };
     let list = List::new(items)
-        .block(title_block("Commands", pal))
+        .block(title_block(&title, pal))
         .highlight_style(
             Style::default()
                 .bg(pal.accent)

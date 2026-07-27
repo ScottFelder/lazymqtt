@@ -120,12 +120,15 @@ this loop — plugin dispatch is synchronous here, so plugins must be fast.
   `App::run_command` (app.rs) are the single source of truth. A shortcut key in
   `broker_keys` and the `m` command menu both call `run_command`. Add new broker
   commands there, not as bespoke key arms. The `m` menu (`open_command_menu`)
-  builds a `Vec<MenuItem>` fresh each open: the core `BROKER_COMMANDS` plus each
-  enabled plugin's `commands()`, so plugin labels reflect live state. Enter
-  routes by `MenuAction` — `Core(Command)` → `run_command`, `Plugin { plugin, id }`
-  → `invoke_plugin_command` (which calls `PluginHost::invoke` and applies the
-  returned actions). Plugins add menu entries via the `commands`/`invoke` trait
-  methods, not by editing the menu.
+  builds a `Vec<MenuItem>` fresh each open, two levels deep tracked by
+  `menu_plugin`: the top level is the core `BROKER_COMMANDS` plus one
+  `MenuAction::Submenu(plugin)` opener per plugin that has commands
+  (`PluginHost::command_plugins`); descending (`open_plugin_submenu`) shows that
+  plugin's own `commands()`. `build_menu_items` is level-aware and re-runs after
+  each adjust, so labels reflect live state. Enter routes by `MenuAction` —
+  `Core` → `run_command`, `Submenu` → descend, `Plugin { plugin, id }` →
+  `invoke_plugin_command`. Plugins add entries via `commands`/`invoke`, not by
+  editing the menu.
 - **Adjustable menu items cycle in place**: a `PluginCommand` with
   `adjustable: true` (built with `PluginCommand::option`) is an option cycler,
   not a one-shot action. Left/right (or `h`/`l`) call `App::adjust_selected_menu_item`

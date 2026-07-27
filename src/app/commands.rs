@@ -1,10 +1,28 @@
 use crate::app::{App, Command, MenuAction, MenuItem, Screen, BROKER_COMMANDS};
 
 impl App {
-    /// Build the command-menu rows: the core `BROKER_COMMANDS` followed by each
-    /// enabled plugin's commands (labels computed fresh, so they reflect current
-    /// state). Shared by `open_command_menu` and the in-place adjust refresh.
+    /// Build the command-menu rows for the current level. The top level is the
+    /// core `BROKER_COMMANDS` plus one submenu entry per plugin that has
+    /// commands; a plugin submenu (`menu_plugin` set) is that plugin's own
+    /// commands. Rebuilt on open and after each in-place adjust so labels stay
+    /// current.
     fn build_menu_items(&self) -> Vec<MenuItem> {
+        if let Some(plugin) = self.menu_plugin {
+            return self
+                .plugins
+                .commands()
+                .into_iter()
+                .filter(|(i, _)| *i == plugin)
+                .map(|(plugin, cmd)| MenuItem {
+                    key: cmd.glyph.to_string(),
+                    label: cmd.label,
+                    note: String::new(),
+                    action: MenuAction::Plugin { plugin, id: cmd.id },
+                    adjustable: cmd.adjustable,
+                })
+                .collect();
+        }
+
         let mut items: Vec<MenuItem> = BROKER_COMMANDS
             .iter()
             .map(|(cmd, key, desc)| MenuItem {
@@ -15,29 +33,45 @@ impl App {
                 adjustable: false,
             })
             .collect();
-        let metadata = self.plugins.metadata();
-        for (plugin, cmd) in self.plugins.commands() {
-            let note = metadata
-                .get(plugin)
-                .map(|m| m.name.to_string())
-                .unwrap_or_default();
+        // One submenu opener per enabled plugin that contributes commands.
+        for (plugin, meta) in self.plugins.command_plugins() {
             items.push(MenuItem {
-                key: cmd.glyph.to_string(),
-                label: cmd.label,
-                note,
-                action: MenuAction::Plugin { plugin, id: cmd.id },
-                adjustable: cmd.adjustable,
+                key: "▸".to_string(),
+                label: meta.name.to_string(),
+                note: meta.description.to_string(),
+                action: MenuAction::Submenu(plugin),
+                adjustable: false,
             });
         }
         items
     }
 
-    /// Build the command menu (core commands + enabled plugins' commands) and
-    /// open it.
+    /// Open the command menu at its top level.
     pub fn open_command_menu(&mut self) {
+        self.menu_plugin = None;
         self.menu_items = self.build_menu_items();
         self.menu_selected = 0;
         self.screen = Screen::CommandMenu;
+    }
+
+    /// Descend into a plugin's submenu (its own commands).
+    pub fn open_plugin_submenu(&mut self, plugin: usize) {
+        self.menu_plugin = Some(plugin);
+        self.menu_items = self.build_menu_items();
+        self.menu_selected = 0;
+    }
+
+    /// Return from a plugin submenu to the top-level menu.
+    pub fn close_plugin_submenu(&mut self) {
+        self.menu_plugin = None;
+        self.menu_items = self.build_menu_items();
+        self.menu_selected = 0;
+    }
+
+    /// The current submenu's plugin name, if in one (for the popup title).
+    pub fn menu_plugin_name(&self) -> Option<String> {
+        self.menu_plugin
+            .and_then(|i| self.plugins.metadata().get(i).map(|m| m.name.to_string()))
     }
 
     /// Invoke a plugin command from the menu and apply its actions. `OpenPane`

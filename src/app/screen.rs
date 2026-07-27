@@ -79,7 +79,12 @@ pub const BROKER_COMMANDS: &[(Command, &str, &str)] = &[
 #[derive(Clone)]
 pub enum MenuAction {
     Core(Command),
-    Plugin { plugin: usize, id: String },
+    /// Open a plugin's submenu (its own commands live one level down).
+    Submenu(usize),
+    Plugin {
+        plugin: usize,
+        id: String,
+    },
 }
 
 /// One row of the command menu (built fresh each open, and rebuilt after an
