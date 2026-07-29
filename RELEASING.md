@@ -10,8 +10,8 @@ lazymqtt uses two GitHub Actions workflows:
      and `x86_64-unknown-linux-gnu`, and attaches them (as `.tar.gz`) to the
      GitHub Release for the tag;
   2. publishes the crate to crates.io (`cargo publish`);
-  3. regenerates `Formula/lazymqtt.rb` to point at the new binaries and commits
-     it back to `master` (this repo doubles as its own Homebrew tap).
+  3. regenerates the formula to point at the new binaries and pushes it to the
+     dedicated Homebrew tap repo, [`ScottFelder/homebrew-lazymqtt`](https://github.com/ScottFelder/homebrew-lazymqtt).
 
 ## Versioning
 
@@ -41,17 +41,21 @@ must match it (`v0.1.1` ⇢ `version = "0.1.1"`).
   add it as a repository secret named **`CARGO_REGISTRY_TOKEN`**
   (Settings → Secrets and variables → Actions). The crate name `lazymqtt` must be
   available/owned by you; the first `cargo publish` claims it.
-- **Homebrew tap** — no separate repo is needed: this repository is its own tap.
-  After the first release, users install with:
+- **Homebrew tap** — create a separate repo named **`homebrew-lazymqtt`** (the
+  `homebrew-` prefix is what lets `brew tap scottfelder/lazymqtt` resolve to it).
+  It holds only `Formula/lazymqtt.rb`, which the release workflow keeps updated.
+  Then create a **`HOMEBREW_TAP_TOKEN`** repository secret on *this* repo: a
+  fine-grained PAT with **Contents: read and write** on the `homebrew-lazymqtt`
+  repo (the workflow uses it to push the regenerated formula there).
+  Users install with:
   ```bash
-  brew tap ScottFelder/lazymqtt https://github.com/ScottFelder/lazymqtt
+  brew tap scottfelder/lazymqtt
   brew trust scottfelder/lazymqtt   # required for any third-party tap
   brew install lazymqtt
   ```
-  The release workflow commits the formula to `master` using the built-in
-  `GITHUB_TOKEN`, so no extra secret is needed for it. The `brew trust` step is
-  a Homebrew-wide requirement for third-party taps (it refuses to load an
-  untrusted tap's formula), unavoidable short of getting into `homebrew-core`.
+  The `brew trust` step is a Homebrew-wide requirement for third-party taps (it
+  refuses to load an untrusted tap's formula), unavoidable short of getting into
+  `homebrew-core`.
 
 ## Notes
 

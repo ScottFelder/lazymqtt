@@ -29,7 +29,7 @@ A fast, terminal-UI MQTT client written in Rust — inspired by [MQTT Explorer](
 **Homebrew** (macOS & Linux):
 
 ```bash
-brew tap ScottFelder/lazymqtt https://github.com/ScottFelder/lazymqtt
+brew tap scottfelder/lazymqtt
 brew trust scottfelder/lazymqtt   # Homebrew requires trusting third-party taps
 brew install lazymqtt
 ```
