@@ -79,7 +79,7 @@ mod tests {
 
     #[test]
     fn upsert_replaces_by_name() {
-        let mut all = vec![
+        let mut all = [
             PublishTemplate {
                 name: "a".into(),
                 topic: "t1".into(),
