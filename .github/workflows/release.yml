@@ -1,0 +1,126 @@
+name: Release
+
+# Triggered by pushing a version tag, e.g. `git tag v0.1.1 && git push --tags`.
+on:
+  push:
+    tags: ["v*.*.*"]
+
+permissions:
+  contents: write
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  # Build a release binary for each supported platform and attach a tarball to
+  # the GitHub Release for this tag.
+  build:
+    name: Build ${{ matrix.target }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { os: macos-14, target: aarch64-apple-darwin }
+          - { os: macos-14, target: x86_64-apple-darwin }
+          - { os: ubuntu-latest, target: x86_64-unknown-linux-gnu }
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: ${{ matrix.target }}
+      - name: Build
+        run: cargo build --release --target ${{ matrix.target }}
+      - name: Package
+        run: |
+          tar czf "lazymqtt-${{ matrix.target }}.tar.gz" \
+            -C "target/${{ matrix.target }}/release" lazymqtt
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.target }}
+          path: lazymqtt-${{ matrix.target }}.tar.gz
+      - name: Attach to release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: lazymqtt-${{ matrix.target }}.tar.gz
+
+  # Publish the crate to crates.io so users can `cargo install lazymqtt`.
+  # Requires a CARGO_REGISTRY_TOKEN repository secret (from crates.io).
+  crates:
+    name: Publish to crates.io
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: Publish
+        run: cargo publish --token "${{ secrets.CARGO_REGISTRY_TOKEN }}"
+
+  # Regenerate the Homebrew formula (this repo doubles as its own tap) to point
+  # at the freshly-built binaries, and commit it back to master.
+  homebrew:
+    name: Update Homebrew formula
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: master
+      - name: Download build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: dist
+      - name: Generate formula
+        run: |
+          set -euo pipefail
+          version="${GITHUB_REF_NAME#v}"
+          base="https://github.com/${GITHUB_REPOSITORY}/releases/download/${GITHUB_REF_NAME}"
+          sha_arm_mac=$(sha256sum dist/aarch64-apple-darwin/*.tar.gz | cut -d' ' -f1)
+          sha_x86_mac=$(sha256sum dist/x86_64-apple-darwin/*.tar.gz | cut -d' ' -f1)
+          sha_x86_linux=$(sha256sum dist/x86_64-unknown-linux-gnu/*.tar.gz | cut -d' ' -f1)
+          mkdir -p Formula
+          cat > Formula/lazymqtt.rb <<RB
+          class Lazymqtt < Formula
+            desc "Fast terminal UI MQTT client, inspired by MQTT Explorer"
+            homepage "https://github.com/${GITHUB_REPOSITORY}"
+            version "${version}"
+            license "MIT"
+
+            on_macos do
+              on_arm do
+                url "${base}/lazymqtt-aarch64-apple-darwin.tar.gz"
+                sha256 "${sha_arm_mac}"
+              end
+              on_intel do
+                url "${base}/lazymqtt-x86_64-apple-darwin.tar.gz"
+                sha256 "${sha_x86_mac}"
+              end
+            end
+
+            on_linux do
+              on_intel do
+                url "${base}/lazymqtt-x86_64-unknown-linux-gnu.tar.gz"
+                sha256 "${sha_x86_linux}"
+              end
+            end
+
+            def install
+              bin.install "lazymqtt"
+            end
+
+            test do
+              assert_match "lazymqtt #{version}", shell_output("#{bin}/lazymqtt --version")
+            end
+          end
+          RB
+      - name: Commit formula
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add Formula/lazymqtt.rb
+          git diff --cached --quiet || git commit -m "Homebrew: lazymqtt ${GITHUB_REF_NAME#v}"
+          git push origin HEAD:master

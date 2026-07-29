@@ -24,6 +24,26 @@ A fast, terminal-UI MQTT client written in Rust — inspired by [MQTT Explorer](
 - **Plugins** — an in-process plugin system observes the message stream and annotates, re-renders, or acts on it. Built-ins: a JSON-validity marker, a JSON pretty-print view, per-connection topic alerts, and a traffic recorder/replayer. Enable/disable per plugin (persisted).
 - **Fast** — async `rumqttc` event loop feeding a non-blocking `ratatui` render loop; release build is LTO-optimized and stripped.
 
+## Install
+
+**Homebrew** (macOS & Linux):
+
+```bash
+brew tap ScottFelder/lazymqtt https://github.com/ScottFelder/lazymqtt
+brew install lazymqtt
+```
+
+**Cargo** (any platform with a Rust toolchain):
+
+```bash
+cargo install lazymqtt
+```
+
+**Prebuilt binaries** for macOS (Apple Silicon & Intel) and Linux x86-64 are
+attached to each [GitHub Release](https://github.com/ScottFelder/lazymqtt/releases).
+
+`lazymqtt --version` prints the installed version; `lazymqtt --help` shows usage.
+
 ## Build & Run
 
 Requires a Rust toolchain (`rustup`, stable).

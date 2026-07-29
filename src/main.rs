@@ -22,8 +22,39 @@ use ratatui::{backend::CrosstermBackend, Terminal};
 use std::io;
 use std::time::{Duration, Instant};
 
+const HELP: &str = "\
+lazymqtt — a fast terminal UI MQTT client
+
+USAGE:
+    lazymqtt [OPTIONS]
+
+OPTIONS:
+    -V, --version    Print version and exit
+    -h, --help       Print this help and exit
+
+Run with no arguments to launch the TUI. Connections, plugins, and themes
+are configured in-app and stored under ~/.config/lazymqtt/.
+";
+
 #[tokio::main]
 async fn main() -> Result<()> {
+    // Answer --version / --help without touching the terminal, so the binary
+    // behaves like a well-mannered CLI (and `brew test` can check --version).
+    let args = std::env::args().skip(1);
+    for arg in args {
+        match arg.as_str() {
+            "-V" | "--version" => {
+                println!("lazymqtt {}", env!("CARGO_PKG_VERSION"));
+                return Ok(());
+            }
+            "-h" | "--help" => {
+                print!("{HELP}");
+                return Ok(());
+            }
+            _ => {}
+        }
+    }
+
     // Relocate any pre-existing config from the old macOS location before
     // anything reads it.
     paths::migrate_legacy_config();
