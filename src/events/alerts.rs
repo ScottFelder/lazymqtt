@@ -29,14 +29,12 @@ pub(crate) fn alert_rules_keys(app: &mut App, key: KeyEvent) {
                 app.screen = Screen::AlertRuleForm;
             }
         }
-        KeyCode::Char('d') => {
-            if app.alerts_selected < len {
-                app.alert_rules.remove(app.alerts_selected);
-                if app.alerts_selected > 0 && app.alerts_selected >= app.alert_rules.len() {
-                    app.alerts_selected -= 1;
-                }
-                app.persist_alert_rules();
+        KeyCode::Char('d') if app.alerts_selected < len => {
+            app.alert_rules.remove(app.alerts_selected);
+            if app.alerts_selected > 0 && app.alerts_selected >= app.alert_rules.len() {
+                app.alerts_selected -= 1;
             }
+            app.persist_alert_rules();
         }
         _ => {}
     }

@@ -19,10 +19,8 @@ pub(crate) fn plugins_keys(app: &mut App, key: KeyEvent) {
         KeyCode::Char('k') | KeyCode::Up => {
             app.plugins_selected = app.plugins_selected.saturating_sub(1);
         }
-        KeyCode::Char(' ') | KeyCode::Enter => {
-            if len > 0 {
-                app.plugins.toggle(app.plugins_selected);
-            }
+        KeyCode::Char(' ') | KeyCode::Enter if len > 0 => {
+            app.plugins.toggle(app.plugins_selected);
         }
         _ => {}
     }
