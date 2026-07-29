@@ -30,8 +30,13 @@ A fast, terminal-UI MQTT client written in Rust — inspired by [MQTT Explorer](
 
 ```bash
 brew tap ScottFelder/lazymqtt https://github.com/ScottFelder/lazymqtt
+brew trust scottfelder/lazymqtt   # Homebrew requires trusting third-party taps
 brew install lazymqtt
 ```
+
+> The `brew trust` step is a Homebrew policy for all third-party taps, not
+> specific to lazymqtt — Homebrew refuses to load a tap's formula until you
+> trust it once.
 
 **Cargo** (any platform with a Rust toolchain):
 

@@ -45,10 +45,13 @@ must match it (`v0.1.1` ⇢ `version = "0.1.1"`).
   After the first release, users install with:
   ```bash
   brew tap ScottFelder/lazymqtt https://github.com/ScottFelder/lazymqtt
+  brew trust scottfelder/lazymqtt   # required for any third-party tap
   brew install lazymqtt
   ```
   The release workflow commits the formula to `master` using the built-in
-  `GITHUB_TOKEN`, so no extra secret is needed for it.
+  `GITHUB_TOKEN`, so no extra secret is needed for it. The `brew trust` step is
+  a Homebrew-wide requirement for third-party taps (it refuses to load an
+  untrusted tap's formula), unavoidable short of getting into `homebrew-core`.
 
 ## Notes
 
