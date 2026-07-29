@@ -2,8 +2,17 @@
 name = "lazymqtt"
 version = "0.1.0"
 edition = "2021"
+rust-version = "1.74"
+authors = ["Scott Felder <scottf@morantug.com>"]
 description = "A fast terminal UI MQTT client, inspired by MQTT Explorer."
 license = "MIT"
+readme = "README.md"
+repository = "https://github.com/ScottFelder/lazymqtt"
+homepage = "https://github.com/ScottFelder/lazymqtt"
+keywords = ["mqtt", "tui", "terminal", "cli", "iot"]
+categories = ["command-line-utilities", "network-programming"]
+# Keep the published crate lean — the demo GIFs and CI config aren't needed to build.
+exclude = ["assets/", ".github/", "*.gif"]
 
 [dependencies]
 ratatui = "0.28"
