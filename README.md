@@ -265,6 +265,12 @@ src/
                  traffic-analytics, topic-recorder)
 ```
 
+## Contributing
+
+Contributions are welcome — bugs, features, docs, and plugins. See
+[CONTRIBUTING.md](CONTRIBUTING.md) for the dev setup, the checks CI expects
+(`fmt` / `clippy` / `test`), and the pull-request workflow.
+
 ## License
 
 MIT
