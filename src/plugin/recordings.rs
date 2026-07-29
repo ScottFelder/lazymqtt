@@ -72,7 +72,7 @@ pub fn list(config_dir: &Path, conn: &str) -> Vec<Recording> {
             ))
         })
         .collect();
-    items.sort_by(|a, b| b.0.cmp(&a.0));
+    items.sort_by_key(|item| std::cmp::Reverse(item.0));
     items.into_iter().map(|(_, r)| r).collect()
 }
 
@@ -237,5 +237,24 @@ mod tests {
             Err((idx, _)) => assert_eq!(idx, 2),
             Ok(_) => panic!("expected a parse error"),
         }
+    }
+
+    #[test]
+    fn list_returns_newest_recording_first() {
+        let tmp =
+            std::env::temp_dir().join(format!("lazymqtt-recordings-{}", uuid::Uuid::new_v4()));
+        let _ = fs::remove_dir_all(&tmp);
+
+        write_label(&tmp, "conn1", "older", &[m(0, "a")]).unwrap();
+        std::thread::sleep(std::time::Duration::from_millis(20));
+        write_label(&tmp, "conn1", "newer", &[m(1, "b")]).unwrap();
+
+        let items = list(&tmp, "conn1");
+        assert_eq!(
+            items.iter().map(|r| r.label.as_str()).collect::<Vec<_>>(),
+            vec!["newer", "older"]
+        );
+
+        fs::remove_dir_all(&tmp).unwrap();
     }
 }
