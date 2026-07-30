@@ -73,6 +73,14 @@ pub(crate) fn draw_form(f: &mut Frame, app: &App, area: Rect) {
                 "[ ] disabled (space to toggle)"
             },
         ),
+        (
+            "Validate Cert",
+            if form.tls_verify {
+                "[x] enabled  (space to toggle)"
+            } else {
+                "[ ] disabled (space to toggle)"
+            },
+        ),
         ("Topics", form.topics.as_str()),
     ];
 
@@ -90,10 +98,10 @@ pub(crate) fn draw_form(f: &mut Frame, app: &App, area: Rect) {
         } else {
             *val
         };
-        let cursor = if focused && i != 6 { "_" } else { "" };
+        let cursor = if focused && i != 6 && i != 7 { "_" } else { "" };
         lines.push(Line::from(vec![
             Span::styled(marker, Style::default().fg(pal.accent)),
-            Span::styled(format!("{:<11}", label), label_style),
+            Span::styled(format!("{:<14}", label), label_style),
             Span::raw(shown.to_string()),
             Span::styled(cursor, Style::default().fg(pal.accent)),
         ]));

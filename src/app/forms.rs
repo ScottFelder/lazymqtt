@@ -14,7 +14,6 @@ pub enum Status {
 }
 
 /// Editable buffer backing the connection form.
-#[derive(Default)]
 pub struct FormBuffer {
     pub editing_index: Option<usize>,
     pub name: String,
@@ -24,12 +23,31 @@ pub struct FormBuffer {
     pub username: String,
     pub password: String,
     pub tls: bool,
+    pub tls_verify: bool,
     pub topics: String, // newline/comma separated
     pub field: usize,   // which field is focused
 }
 
+impl Default for FormBuffer {
+    fn default() -> Self {
+        Self {
+            editing_index: None,
+            name: String::new(),
+            host: String::new(),
+            port: String::new(),
+            client_id: String::new(),
+            username: String::new(),
+            password: String::new(),
+            tls: false,
+            tls_verify: true,
+            topics: String::new(),
+            field: 0,
+        }
+    }
+}
+
 impl FormBuffer {
-    pub const FIELD_COUNT: usize = 8;
+    pub const FIELD_COUNT: usize = 9;
 
     pub fn from(conn: &Connection, index: usize) -> Self {
         Self {
@@ -41,6 +59,7 @@ impl FormBuffer {
             username: conn.username.clone(),
             password: conn.password.clone(),
             tls: conn.tls,
+            tls_verify: conn.tls_verify,
             topics: conn
                 .subscriptions
                 .iter()

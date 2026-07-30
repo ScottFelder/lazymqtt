@@ -36,6 +36,8 @@ pub struct Connection {
     pub password: String,
     #[serde(default)]
     pub tls: bool,
+    #[serde(default = "default_tls_verify")]
+    pub tls_verify: bool,
     #[serde(default)]
     pub subscriptions: Vec<Subscription>,
 }
@@ -45,6 +47,9 @@ fn new_id() -> String {
 }
 fn default_port() -> u16 {
     1883
+}
+fn default_tls_verify() -> bool {
+    true
 }
 
 impl Connection {
@@ -58,6 +63,7 @@ impl Connection {
             username: String::new(),
             password: String::new(),
             tls: false,
+            tls_verify: true,
             subscriptions: vec![Subscription::new("#")],
         }
     }
