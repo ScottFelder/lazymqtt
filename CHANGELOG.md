@@ -9,6 +9,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 <!-- Add changes here as they land; they become the next release's notes. -->
 
+## [0.1.1] - 2026-07-30
+
+### Added
+
+- TLS certificate validation toggle, for connecting to brokers with self-signed
+  certificates.
+
 ## [0.1.0] - 2026-07-28
 
 Initial public release.
@@ -38,5 +45,6 @@ Initial public release.
   the old macOS `Application Support` location.
 - `--version` / `--help` command-line flags.
 
-[Unreleased]: https://github.com/ScottFelder/lazymqtt/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/ScottFelder/lazymqtt/compare/v0.1.1...HEAD
+[0.1.1]: https://github.com/ScottFelder/lazymqtt/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/ScottFelder/lazymqtt/releases/tag/v0.1.0
