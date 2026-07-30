@@ -58,7 +58,17 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
       - name: Publish
-        run: cargo publish --token "${{ secrets.CARGO_REGISTRY_TOKEN }}"
+        run: |
+          set +e
+          output=$(cargo publish --token "${{ secrets.CARGO_REGISTRY_TOKEN }}" 2>&1)
+          status=$?
+          set -e
+          echo "$output"
+          if [ "$status" -ne 0 ] && echo "$output" | grep -q "already exists on crates.io index"; then
+            echo "This crate version is already published; treating rerun as success."
+            exit 0
+          fi
+          exit "$status"
 
   # Regenerate the Homebrew formula in the dedicated tap repo
   # (ScottFelder/homebrew-lazymqtt) to point at the freshly-built binaries.
