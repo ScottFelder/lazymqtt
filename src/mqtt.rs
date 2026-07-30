@@ -1,13 +1,13 @@
 use crate::config::Connection;
 use anyhow::Result;
 use chrono::{DateTime, Local};
-use rumqttc::{AsyncClient, Event, Incoming, MqttOptions, Outgoing, QoS, Transport};
 use rumqttc::tokio_rustls::rustls::{
     self,
     client::danger::{HandshakeSignatureValid, ServerCertVerified, ServerCertVerifier},
     pki_types::{CertificateDer, ServerName, UnixTime},
     DigitallySignedStruct, Error as TlsError, SignatureScheme,
 };
+use rumqttc::{AsyncClient, Event, Incoming, MqttOptions, Outgoing, QoS, Transport};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::time::Duration;
