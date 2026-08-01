@@ -12,6 +12,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Command menu (`m`) now supports accelerator keys: pressing a row's own key
   activates it directly (e.g. `T` opens the Theme screen), in addition to
   scrolling to it and pressing Enter.
+- Enabled plugins now advertise their keys in the broker status bar: e.g.
+  enabling json-view adds the `i` (payload view) hint, and disabling it removes
+  the hint — so the keys a plugin provides are discoverable.
 
 ### Changed
 
