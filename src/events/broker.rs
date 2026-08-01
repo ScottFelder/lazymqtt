@@ -124,8 +124,8 @@ pub(crate) fn broker_keys(app: &mut App, key: KeyEvent) {
                 app.expanded.remove(&r.path);
             }
         }
-        KeyCode::Char('E') if app.focus == Focus::Tree => app.run_command(Command::ExpandAll),
-        KeyCode::Char('C') if app.focus == Focus::Tree => app.run_command(Command::CollapseAll),
+        KeyCode::Char('E') if app.focus == Focus::Tree => app.run_command(Command::ExpandSubtree),
+        KeyCode::Char('C') if app.focus == Focus::Tree => app.run_command(Command::CollapseSubtree),
         KeyCode::Char('s') => app.run_command(Command::Subscribe),
         KeyCode::Char('u') => app.run_command(Command::Unsubscribe),
         KeyCode::Char('r') => app.run_command(Command::ClearRetained),

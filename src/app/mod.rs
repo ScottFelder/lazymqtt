@@ -488,6 +488,33 @@ mod tests {
     }
 
     #[test]
+    fn expand_collapse_subtree_scopes_to_selection() {
+        let mut app = App::new();
+        app.push_message(msg("home/livingroom/temp", "21"));
+        app.push_message(msg("home/kitchen/temp", "23"));
+        app.push_message(msg("system/status", "ok"));
+
+        // Select `home` (first top-level row) and expand its subtree only.
+        app.tree_selected = 0;
+        assert_eq!(app.selected_topic().as_deref(), Some("home"));
+        app.expand_subtree();
+        assert!(app.expanded.contains("home"));
+        assert!(app.expanded.contains("home/livingroom"));
+        assert!(app.expanded.contains("home/kitchen"));
+        // `system` is outside the selected subtree, so it stays collapsed.
+        assert!(!app.expanded.contains("system"));
+        // Cursor stays on `home`.
+        assert_eq!(app.selected_topic().as_deref(), Some("home"));
+
+        // Collapsing the `home` subtree clears home and its descendants only.
+        app.collapse_subtree();
+        assert!(!app.expanded.contains("home"));
+        assert!(!app.expanded.contains("home/livingroom"));
+        assert!(!app.expanded.contains("home/kitchen"));
+        assert_eq!(app.selected_topic().as_deref(), Some("home"));
+    }
+
+    #[test]
     fn non_json_payload_has_no_alternate_view() {
         let mut app = App::new();
         app.push_message(msg("data", "plain text"));
