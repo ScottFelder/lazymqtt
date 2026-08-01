@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Command menu (`m`) now supports accelerator keys: pressing a row's own key
+  activates it directly (e.g. `T` opens the Theme screen), in addition to
+  scrolling to it and pressing Enter.
+
 ### Changed
 
 - Status-bar command hints now render each binding as a highlighted key plus a

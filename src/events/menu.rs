@@ -43,23 +43,13 @@ pub(crate) fn command_menu_keys(app: &mut App, key: KeyEvent) {
             Some(plugin) => app.open_plugin_submenu(plugin),
             None => app.adjust_selected_menu_item(true),
         },
-        KeyCode::Enter if len > 0 => {
-            if let Some(plugin) = submenu {
-                app.open_plugin_submenu(plugin);
-            } else if adjustable {
-                // Cycle forward in place, like pressing Right.
-                app.adjust_selected_menu_item(true);
-            } else {
-                // A concrete command closes the menu first; it may then open its
-                // own screen (publish form, pane, …).
-                let action = app.menu_items[sel].action.clone();
-                app.screen = Screen::Broker;
-                match action {
-                    MenuAction::Core(cmd) => app.run_command(cmd),
-                    MenuAction::Plugin { plugin, id } => app.invoke_plugin_command(plugin, &id),
-                    MenuAction::Submenu(_) => {}
-                }
-            }
+        KeyCode::Enter => app.activate_selected_menu_item(),
+        // Accelerator: a row's own key jumps to and activates it, just like
+        // selecting it and pressing Enter (e.g. `T` opens the Theme screen).
+        // Navigation keys above take precedence, so a plugin glyph that collides
+        // with them stays reachable only by scrolling.
+        KeyCode::Char(c) => {
+            app.activate_menu_key(c);
         }
         _ => {}
     }
