@@ -32,6 +32,42 @@ impl App {
         self.reset_message_view();
     }
 
+    /// Expand every topic-tree node that has children. Keeps the cursor on the
+    /// currently selected topic.
+    pub fn expand_all_topics(&mut self) {
+        let keep = self.selected_topic();
+        self.expanded = self.tree.all_parent_paths();
+        self.select_tree_path(keep);
+    }
+
+    /// Collapse the whole topic tree. The cursor follows the selected topic to
+    /// its nearest still-visible ancestor.
+    pub fn collapse_all_topics(&mut self) {
+        let keep = self.selected_topic();
+        self.expanded.clear();
+        self.select_tree_path(keep);
+    }
+
+    /// Move the tree cursor to `path` if visible, else to its nearest visible
+    /// ancestor; clamps to the row count. Refreshes the message view for the new
+    /// selection.
+    fn select_tree_path(&mut self, path: Option<String>) {
+        let rows = self.tree.rows(&self.expanded);
+        let idx = path.and_then(|mut p| loop {
+            if let Some(i) = rows.iter().position(|r| r.path == p) {
+                return Some(i);
+            }
+            match p.rsplit_once('/') {
+                Some((parent, _)) => p = parent.to_string(),
+                None => return None,
+            }
+        });
+        self.tree_selected = idx
+            .unwrap_or(self.tree_selected)
+            .min(rows.len().saturating_sub(1));
+        self.reset_message_view();
+    }
+
     pub(crate) fn unsubscribe_selected(&mut self) {
         let Some(topic) = self.selected_topic() else {
             return;

@@ -31,6 +31,8 @@ pub enum Command {
     ClearRetained,
     ClearTopic,
     ClearTree,
+    ExpandAll,
+    CollapseAll,
     AlertRules,
     Schemas,
     Recordings,
@@ -61,6 +63,8 @@ pub const BROKER_COMMANDS: &[(Command, &str, &str)] = &[
         "Clear the selected topic from the view",
     ),
     (Command::ClearTree, "c", "Clear the topic tree"),
+    (Command::ExpandAll, "E", "Expand all topics"),
+    (Command::CollapseAll, "C", "Collapse all topics"),
     (Command::AlertRules, "A", "Edit alert rules"),
     (Command::Schemas, "S", "Edit JSON Schemas"),
     (
