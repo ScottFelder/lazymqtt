@@ -32,20 +32,33 @@ impl App {
         self.reset_message_view();
     }
 
-    /// Expand every topic-tree node that has children. Keeps the cursor on the
-    /// currently selected topic.
-    pub fn expand_all_topics(&mut self) {
-        let keep = self.selected_topic();
-        self.expanded = self.tree.all_parent_paths();
-        self.select_tree_path(keep);
+    /// Expand the selected topic and every node beneath it. Keeps the cursor on
+    /// the selected topic.
+    pub fn expand_subtree(&mut self) {
+        let Some(root) = self.selected_topic() else {
+            return;
+        };
+        let prefix = format!("{root}/");
+        let under: Vec<String> = self
+            .tree
+            .all_parent_paths()
+            .into_iter()
+            .filter(|p| *p == root || p.starts_with(&prefix))
+            .collect();
+        self.expanded.extend(under);
+        self.select_tree_path(Some(root));
     }
 
-    /// Collapse the whole topic tree. The cursor follows the selected topic to
-    /// its nearest still-visible ancestor.
-    pub fn collapse_all_topics(&mut self) {
-        let keep = self.selected_topic();
-        self.expanded.clear();
-        self.select_tree_path(keep);
+    /// Collapse the selected topic and every node beneath it. The selected topic
+    /// itself stays visible (and selected), just closed.
+    pub fn collapse_subtree(&mut self) {
+        let Some(root) = self.selected_topic() else {
+            return;
+        };
+        let prefix = format!("{root}/");
+        self.expanded
+            .retain(|p| !(*p == root || p.starts_with(&prefix)));
+        self.select_tree_path(Some(root));
     }
 
     /// Move the tree cursor to `path` if visible, else to its nearest visible

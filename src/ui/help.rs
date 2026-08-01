@@ -29,7 +29,7 @@ pub(crate) fn draw_help(f: &mut Frame, app: &App, area: Rect) {
         Line::from("  m            command menu (scroll + Enter; ←/→ or h/l cycle options)"),
         Line::from("  ↑/↓ or j/k   move in tree   ·   Enter    expand/collapse"),
         Line::from("  →            expand         ·   ←        collapse"),
-        Line::from("  E            expand all     ·   C        collapse all"),
+        Line::from("  E            expand subtree ·   C        collapse subtree"),
         Line::from("  Tab          cycle panes"),
         Line::from("  1            focus Topics   ·   2        focus Payload"),
         Line::from("  3            focus History"),
