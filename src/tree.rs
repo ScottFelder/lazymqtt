@@ -52,6 +52,29 @@ impl TopicTree {
         walk(&self.root, String::new(), 0, expanded, &mut out);
         out
     }
+
+    /// Paths of every node that has children — i.e. the expansion set that
+    /// fully expands the tree. Used by "expand all".
+    pub fn all_parent_paths(&self) -> std::collections::HashSet<String> {
+        let mut out = std::collections::HashSet::new();
+        collect_parents(&self.root, String::new(), &mut out);
+        out
+    }
+}
+
+fn collect_parents(node: &TopicNode, path: String, out: &mut std::collections::HashSet<String>) {
+    for (name, child) in &node.children {
+        if child.children.is_empty() {
+            continue;
+        }
+        let child_path = if path.is_empty() {
+            name.clone()
+        } else {
+            format!("{}/{}", path, name)
+        };
+        out.insert(child_path.clone());
+        collect_parents(child, child_path, out);
+    }
 }
 
 pub struct TreeRow {
@@ -148,5 +171,23 @@ mod tests {
         assert!(!tree.remove("a/x"));
         assert!(!tree.remove("nope"));
         assert_eq!(paths(&tree), vec!["a".to_string()]);
+    }
+
+    #[test]
+    fn all_parent_paths_covers_every_branch_node() {
+        let mut tree = TopicTree::default();
+        tree.insert(msg("a/b/c"));
+        tree.insert(msg("a/d"));
+        tree.insert(msg("status")); // leaf at the root: not a parent
+
+        let parents = tree.all_parent_paths();
+        let mut got: Vec<String> = parents.iter().cloned().collect();
+        got.sort();
+        assert_eq!(got, vec!["a".to_string(), "a/b".to_string()]);
+
+        // Expanding with this set makes every leaf visible.
+        let visible: Vec<String> = tree.rows(&parents).into_iter().map(|r| r.path).collect();
+        assert!(visible.contains(&"a/b/c".to_string()));
+        assert!(visible.contains(&"a/d".to_string()));
     }
 }

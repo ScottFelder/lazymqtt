@@ -178,6 +178,8 @@ impl App {
                 self.tree_selected = 0;
                 self.reset_message_view();
             }
+            Command::ExpandAll => self.expand_all_topics(),
+            Command::CollapseAll => self.collapse_all_topics(),
             Command::AlertRules => self.open_alerts_editor(),
             Command::Schemas => self.open_schemas(),
             Command::Recordings => self.open_recordings(),
