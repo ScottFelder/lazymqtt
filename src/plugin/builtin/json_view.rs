@@ -35,6 +35,12 @@ impl Plugin for JsonView {
             lines: fmt.lines,
         })
     }
+
+    fn key_hints(&self) -> &'static [(&'static str, &'static str)] {
+        // Makes `i` (cycle payload view) meaningful — it toggles the raw payload
+        // and this structured view.
+        &[("i", "view")]
+    }
 }
 
 /// Accumulates styled spans into lines as the value is walked.
@@ -171,5 +177,11 @@ mod tests {
     fn ignores_non_json() {
         assert!(inspect("just text").is_none());
         assert!(inspect("").is_none());
+    }
+
+    #[test]
+    fn advertises_the_i_key_hint() {
+        // The status bar surfaces this only while the plugin is enabled.
+        assert_eq!(JsonView.key_hints(), &[("i", "view")]);
     }
 }

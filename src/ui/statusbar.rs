@@ -40,7 +40,6 @@ pub(crate) fn draw_statusbar(f: &mut Frame, app: &App, area: Rect) {
             ("hjkl", "move"),
             ("v", "select"),
             ("y", "yank"),
-            ("i", "view"),
             ("z", "fold"),
             ("m", "menu"),
             ("1", "topics"),
@@ -125,6 +124,23 @@ pub(crate) fn draw_statusbar(f: &mut Frame, app: &App, area: Rect) {
         Screen::Help => &[("", "press any key to go back")],
     };
 
+    // On the broker screen, enabled plugins contribute their own key hints
+    // (e.g. json-view adds `i`), inserted just before the `m` menu entry so a
+    // plugin's keys appear when it is on and disappear when it is off.
+    let mut all: Vec<(&str, &str)> = hints.to_vec();
+    if matches!(app.screen, Screen::Broker) {
+        let plugin_hints: Vec<(&str, &str)> = app
+            .plugins
+            .key_hints()
+            .into_iter()
+            .filter(|kh| !all.iter().any(|h| h.0 == kh.0))
+            .collect();
+        if !plugin_hints.is_empty() {
+            let at = all.iter().position(|h| h.0 == "m").unwrap_or(all.len());
+            all.splice(at..at, plugin_hints);
+        }
+    }
+
     let mut spans: Vec<Span> = vec![
         Span::styled(
             format!(" {} ", label),
@@ -132,7 +148,7 @@ pub(crate) fn draw_statusbar(f: &mut Frame, app: &App, area: Rect) {
         ),
         Span::styled("│ ", Style::default().fg(pal.dim)),
     ];
-    for (i, (key, desc)) in hints.iter().enumerate() {
+    for (i, (key, desc)) in all.iter().enumerate() {
         if i > 0 {
             spans.push(Span::styled(" · ", Style::default().fg(pal.dim)));
         }

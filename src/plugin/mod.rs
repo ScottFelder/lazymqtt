@@ -137,6 +137,14 @@ pub trait Plugin {
         Vec::new()
     }
 
+    /// Top-level Broker-screen key hints this plugin contributes to the status
+    /// bar, as (key, label) pairs. These advertise keys the plugin makes
+    /// meaningful while enabled — e.g. json-view enables the `i` payload-view
+    /// toggle — so they appear only when the plugin is on. Default: none.
+    fn key_hints(&self) -> &'static [(&'static str, &'static str)] {
+        &[]
+    }
+
     /// Run one of this plugin's commands, by the `id` from `commands()`. Used
     /// for one-shot commands (Enter in the menu) and as the default forward step
     /// for adjustable ones.
@@ -245,6 +253,21 @@ impl PluginHost {
             .collect()
     }
 
+    /// Broker-screen key hints contributed by the enabled plugins, deduped by
+    /// key (first wins), in plugin order. The status bar appends these so a
+    /// plugin's keys appear when it is enabled and vanish when disabled.
+    pub fn key_hints(&self) -> Vec<(&'static str, &'static str)> {
+        let mut out: Vec<(&'static str, &'static str)> = Vec::new();
+        for slot in self.slots.iter().filter(|s| s.enabled) {
+            for &hint in slot.plugin.key_hints() {
+                if !out.iter().any(|h| h.0 == hint.0) {
+                    out.push(hint);
+                }
+            }
+        }
+        out
+    }
+
     /// Enabled plugins that contribute at least one command, as (slot index,
     /// metadata) — used to build the command menu's per-plugin submenu entries.
     pub fn command_plugins(&self) -> Vec<(usize, PluginMetadata)> {
@@ -348,4 +371,19 @@ impl Default for PluginHost {
 /// `connections.json`, kept separate from connection profiles on purpose.
 fn plugin_config_dir() -> PathBuf {
     crate::paths::config_dir().join("plugins")
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn key_hints_surface_enabled_plugin_keys() {
+        // Under cfg!(test) every built-in loads enabled, so json-view's `i`
+        // hint is present and deduped to a single entry.
+        let host = PluginHost::with_builtins();
+        let hints = host.key_hints();
+        assert_eq!(hints.iter().filter(|h| h.0 == "i").count(), 1);
+        assert!(hints.contains(&("i", "view")));
+    }
 }
