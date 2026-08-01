@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+<!-- Add changes here as they land; they become the next release's notes. -->
+
+## [0.1.2] - 2026-08-01
+
 ### Added
 
 - Command menu (`m`) now supports accelerator keys: pressing a row's own key
@@ -61,6 +65,7 @@ Initial public release.
   the old macOS `Application Support` location.
 - `--version` / `--help` command-line flags.
 
-[Unreleased]: https://github.com/ScottFelder/lazymqtt/compare/v0.1.1...HEAD
+[Unreleased]: https://github.com/ScottFelder/lazymqtt/compare/v0.1.2...HEAD
+[0.1.2]: https://github.com/ScottFelder/lazymqtt/compare/v0.1.1...v0.1.2
 [0.1.1]: https://github.com/ScottFelder/lazymqtt/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/ScottFelder/lazymqtt/releases/tag/v0.1.0
