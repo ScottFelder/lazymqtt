@@ -7,7 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-<!-- Add changes here as they land; they become the next release's notes. -->
+### Changed
+
+- Status-bar command hints now render each binding as a highlighted key plus a
+  dim label, with a single consistent separator — clearer and more polished than
+  the previous flat text.
 
 ## [0.1.1] - 2026-07-30
 
