@@ -57,6 +57,7 @@ pub(crate) fn draw_statusbar(f: &mut Frame, app: &App, area: Rect) {
         Screen::Broker => &[
             ("j/k", "move"),
             ("Enter", "expand"),
+            ("E/C", "all"),
             ("1/2/3", "panes"),
             ("m", "menu"),
             ("?", "help"),
