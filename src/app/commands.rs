@@ -113,6 +113,43 @@ impl App {
             .min(self.menu_items.len().saturating_sub(1));
     }
 
+    /// Activate the currently selected menu row — the shared behavior for both
+    /// `Enter` and an item's accelerator key. A submenu opener descends; an
+    /// adjustable row cycles its option forward in place; a concrete command
+    /// closes the menu and runs.
+    pub fn activate_selected_menu_item(&mut self) {
+        let Some(item) = self.menu_items.get(self.menu_selected) else {
+            return;
+        };
+        let adjustable = item.adjustable;
+        let action = item.action.clone();
+        match action {
+            MenuAction::Submenu(plugin) => self.open_plugin_submenu(plugin),
+            _ if adjustable => self.adjust_selected_menu_item(true),
+            MenuAction::Core(cmd) => {
+                self.screen = Screen::Broker;
+                self.run_command(cmd);
+            }
+            MenuAction::Plugin { plugin, id } => {
+                self.screen = Screen::Broker;
+                self.invoke_plugin_command(plugin, &id);
+            }
+        }
+    }
+
+    /// Select and activate the menu row whose accelerator key matches `c`, if
+    /// any. Returns whether a row was matched.
+    pub fn activate_menu_key(&mut self, c: char) -> bool {
+        let mut buf = [0u8; 4];
+        let typed: &str = c.encode_utf8(&mut buf);
+        let Some(i) = self.menu_items.iter().position(|it| it.key == typed) else {
+            return false;
+        };
+        self.menu_selected = i;
+        self.activate_selected_menu_item();
+        true
+    }
+
     /// Run a broker command — the shared entry point for both its shortcut key
     /// and the command menu.
     pub fn run_command(&mut self, cmd: Command) {
