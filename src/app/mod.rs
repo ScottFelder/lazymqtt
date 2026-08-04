@@ -71,6 +71,7 @@ pub struct App {
     pub menu_selected: usize,       // cursor in the command menu
     pub menu_items: Vec<MenuItem>,  // command-menu rows, rebuilt each open
     pub menu_plugin: Option<usize>, // None = top level; Some = a plugin's submenu
+    pub help_section: usize,        // 0 = core keybindings; 1.. = enabled plugins
 
     // Alert-rules editor (per connection). `alert_rules` is the working copy for
     // the connection identified by `alert_edit_conn` (name shown via
@@ -176,6 +177,7 @@ impl App {
             menu_selected: 0,
             menu_items: Vec::new(),
             menu_plugin: None,
+            help_section: 0,
             alert_rules: Vec::new(),
             alerts_selected: 0,
             alert_form: AlertForm::default(),
@@ -512,6 +514,26 @@ mod tests {
         assert!(!app.expanded.contains("home/livingroom"));
         assert!(!app.expanded.contains("home/kitchen"));
         assert_eq!(app.selected_topic().as_deref(), Some("home"));
+    }
+
+    #[test]
+    fn plugin_help_opens_to_the_right_section() {
+        let mut app = App::new();
+        // Core page + one per enabled plugin (all enabled under cfg!(test)).
+        let n = app.help_section_count();
+        assert_eq!(n, 1 + app.plugins.help_sections().len());
+
+        // json-view is slot 1 -> help page index 1 -> help_section 2.
+        app.open_plugin_help(1);
+        assert!(matches!(app.screen, Screen::Help));
+        assert_eq!(app.help_section, 2);
+
+        // Cycling wraps around the full set of pages.
+        app.help_section = n - 1;
+        app.help_cycle(true);
+        assert_eq!(app.help_section, 0);
+        app.help_cycle(false);
+        assert_eq!(app.help_section, n - 1);
     }
 
     #[test]
