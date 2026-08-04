@@ -188,12 +188,50 @@ impl App {
                 self.plugins_selected = 0;
                 self.screen = Screen::Plugins;
             }
-            Command::Help => self.screen = Screen::Help,
+            Command::Help => self.open_help(),
             Command::Disconnect => {
                 self.disconnect();
                 self.screen = Screen::Connections;
             }
             Command::Quit => self.should_quit = true,
         }
+    }
+
+    /// Open the `?` help at the core-keybindings page.
+    pub fn open_help(&mut self) {
+        self.help_section = 0;
+        self.screen = Screen::Help;
+    }
+
+    /// Open the `?` help straight to a plugin's page (by slot index), e.g. from
+    /// its command submenu. Falls back to the core page if the plugin is not an
+    /// enabled help section.
+    pub fn open_plugin_help(&mut self, plugin: usize) {
+        self.help_section = self
+            .plugins
+            .help_section_for(plugin)
+            .map(|p| p + 1)
+            .unwrap_or(0);
+        self.screen = Screen::Help;
+    }
+
+    /// Total help pages: the core keybindings page plus one per enabled plugin.
+    pub fn help_section_count(&self) -> usize {
+        1 + self.plugins.help_sections().len()
+    }
+
+    /// Move to the next/previous help page, wrapping around.
+    pub fn help_cycle(&mut self, forward: bool) {
+        let n = self.help_section_count();
+        if forward {
+            self.help_section = (self.help_section + 1) % n;
+        } else {
+            self.help_section = (self.help_section + n - 1) % n;
+        }
+    }
+
+    /// Jump directly to help page `idx` (0-based), clamped to the last page.
+    pub fn help_jump(&mut self, idx: usize) {
+        self.help_section = idx.min(self.help_section_count() - 1);
     }
 }

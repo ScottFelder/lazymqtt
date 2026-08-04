@@ -38,13 +38,28 @@ pub fn handle_key(app: &mut App, key: KeyEvent) {
             }
         }
         Screen::CommandMenu => menu::command_menu_keys(app, key),
-        Screen::Help => {
-            app.screen = if app.handle.is_some() {
-                Screen::Broker
-            } else {
-                Screen::Connections
-            };
-        }
+        Screen::Help => match key.code {
+            KeyCode::Tab
+            | KeyCode::Right
+            | KeyCode::Char('l')
+            | KeyCode::Char('n')
+            | KeyCode::Char('j')
+            | KeyCode::Down => app.help_cycle(true),
+            KeyCode::BackTab
+            | KeyCode::Left
+            | KeyCode::Char('h')
+            | KeyCode::Char('p')
+            | KeyCode::Char('k')
+            | KeyCode::Up => app.help_cycle(false),
+            KeyCode::Char(c @ '1'..='9') => app.help_jump(c as usize - '1' as usize),
+            _ => {
+                app.screen = if app.handle.is_some() {
+                    Screen::Broker
+                } else {
+                    Screen::Connections
+                };
+            }
+        },
     }
 }
 

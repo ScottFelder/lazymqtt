@@ -32,6 +32,17 @@ impl Plugin for SchemaValidator {
         }
     }
 
+    fn help(&self) -> &'static [(&'static str, &'static str)] {
+        &[
+            ("S", "open the JSON Schema editor"),
+            (
+                "",
+                "Validates each payload against a per-connection schema, by topic.",
+            ),
+            ("", "Messages that fail validation get an error annotation."),
+        ]
+    }
+
     fn on_load(&mut self, ctx: &PluginContext) -> anyhow::Result<()> {
         // Mappings load per connection on Connected; just remember where they live.
         self.config_dir = ctx.config_dir.clone();

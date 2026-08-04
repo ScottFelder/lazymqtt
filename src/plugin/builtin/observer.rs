@@ -25,6 +25,16 @@ impl Plugin for JsonMarker {
         }
     }
 
+    fn help(&self) -> &'static [(&'static str, &'static str)] {
+        &[
+            ("", "Tags every message as valid or invalid JSON."),
+            (
+                "",
+                "Adds a ✓/✗ annotation plus a running count in the status bar.",
+            ),
+        ]
+    }
+
     fn on_event(&mut self, event: &PluginEvent) -> Vec<PluginAction> {
         match event {
             PluginEvent::MessageReceived { id, payload, .. } => {

@@ -44,6 +44,12 @@ pub(crate) fn command_menu_keys(app: &mut App, key: KeyEvent) {
             None => app.adjust_selected_menu_item(true),
         },
         KeyCode::Enter => app.activate_selected_menu_item(),
+        // `?` opens the help screen — a plugin submenu jumps straight to that
+        // plugin's help page; the top level opens the core help.
+        KeyCode::Char('?') => match app.menu_plugin {
+            Some(plugin) => app.open_plugin_help(plugin),
+            None => app.open_help(),
+        },
         // Accelerator: a row's own key jumps to and activates it, just like
         // selecting it and pressing Enter (e.g. `T` opens the Theme screen).
         // Navigation keys above take precedence, so a plugin glyph that collides

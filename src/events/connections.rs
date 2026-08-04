@@ -7,7 +7,7 @@ pub(crate) fn connections_keys(app: &mut App, key: KeyEvent) {
     let len = app.config.connections.len();
     match key.code {
         KeyCode::Char('q') => app.should_quit = true,
-        KeyCode::Char('?') => app.screen = Screen::Help,
+        KeyCode::Char('?') => app.open_help(),
         KeyCode::Char('P') => {
             app.plugins_selected = 0;
             app.screen = Screen::Plugins;
