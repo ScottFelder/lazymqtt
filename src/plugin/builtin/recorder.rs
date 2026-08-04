@@ -71,6 +71,20 @@ impl Plugin for Recorder {
         }
     }
 
+    fn help(&self) -> &'static [(&'static str, &'static str)] {
+        &[
+            (
+                "m",
+                "start/stop recording and start replay from the command menu",
+            ),
+            ("R", "manage recordings: replay, edit, rename, delete"),
+            (
+                "",
+                "Traffic is saved to JSONL; replay supports loop, speed, and prefix rewrite.",
+            ),
+        ]
+    }
+
     fn on_load(&mut self, ctx: &PluginContext) -> anyhow::Result<()> {
         self.config_dir = ctx.config_dir.clone();
         Ok(())

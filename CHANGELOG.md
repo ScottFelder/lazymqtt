@@ -7,7 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-<!-- Add changes here as they land; they become the next release's notes. -->
+### Added
+
+- The `?` help screen is now tabbed: a core "Keybindings" tab plus one tab per
+  enabled plugin, each showing that plugin's keys and notes. Tab / ←→ switch
+  tabs, 1-9 jump. Plugins contribute their own help via a new `Plugin::help`
+  method, so the help stays in sync with what's enabled.
+- Pressing `?` inside a plugin's command submenu opens the help straight to that
+  plugin's tab.
 
 ## [0.1.2] - 2026-08-01
 

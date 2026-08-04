@@ -35,6 +35,17 @@ impl Plugin for PayloadGenerator {
         }
     }
 
+    fn help(&self) -> &'static [(&'static str, &'static str)] {
+        &[
+            ("m", "start and stop generators from the command menu"),
+            (
+                "",
+                "Publishes synthetic payloads: counters, random, or timestamps.",
+            ),
+            ("", "Runs one-shot or streaming."),
+        ]
+    }
+
     fn on_load(&mut self, ctx: &PluginContext) -> anyhow::Result<()> {
         self.config_dir = ctx.config_dir.clone();
         Ok(())

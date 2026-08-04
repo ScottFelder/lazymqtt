@@ -36,6 +36,21 @@ impl Plugin for TopicAlerts {
         }
     }
 
+    fn help(&self) -> &'static [(&'static str, &'static str)] {
+        &[
+            ("A", "open the alert-rules editor"),
+            (
+                "",
+                "Rules are stored per connection in plugins/alerts.json.",
+            ),
+            ("", "Conditions: above / below / changed / silent."),
+            (
+                "",
+                "Severity warn (⚠) or error (✗), shown on the message + status bar.",
+            ),
+        ]
+    }
+
     fn on_load(&mut self, ctx: &PluginContext) -> anyhow::Result<()> {
         // Rules load per connection on Connected; just remember where they live.
         self.config_dir = ctx.config_dir.clone();

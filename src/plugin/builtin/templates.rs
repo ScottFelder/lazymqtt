@@ -27,6 +27,20 @@ impl Plugin for PublishTemplates {
         }
     }
 
+    fn help(&self) -> &'static [(&'static str, &'static str)] {
+        &[
+            ("m", "browse and send saved templates from the command menu"),
+            (
+                "^T",
+                "in the publish form, save the current message as a template",
+            ),
+            (
+                "",
+                "Templates support {{placeholder}} fields and open pre-filled.",
+            ),
+        ]
+    }
+
     fn on_load(&mut self, ctx: &PluginContext) -> anyhow::Result<()> {
         self.config_dir = ctx.config_dir.clone();
         Ok(())

@@ -122,7 +122,7 @@ pub(crate) fn draw_statusbar(f: &mut Frame, app: &App, area: Rect) {
             ("Enter", "save"),
             ("Esc", "cancel"),
         ],
-        Screen::Help => &[("", "press any key to go back")],
+        Screen::Help => &[("Tab/←→", "section"), ("1-9", "jump"), ("Esc", "close")],
     };
 
     // On the broker screen, enabled plugins contribute their own key hints

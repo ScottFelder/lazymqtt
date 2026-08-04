@@ -145,6 +145,14 @@ pub trait Plugin {
         &[]
     }
 
+    /// Lines for this plugin's page in the `?` help screen, as (key, text)
+    /// pairs: a non-empty key renders as a highlighted binding, an empty key as
+    /// a prose note. The page header (name, version, description) comes from
+    /// `metadata`, so a plugin with no extra keys can leave this empty.
+    fn help(&self) -> &'static [(&'static str, &'static str)] {
+        &[]
+    }
+
     /// Run one of this plugin's commands, by the `id` from `commands()`. Used
     /// for one-shot commands (Enter in the menu) and as the default forward step
     /// for adjustable ones.
@@ -183,6 +191,13 @@ struct Slot {
 pub struct PluginEntry {
     pub metadata: PluginMetadata,
     pub enabled: bool,
+}
+
+/// One enabled plugin's page in the `?` help screen: its metadata (for the
+/// header) plus its help lines.
+pub struct PluginHelpSection {
+    pub metadata: PluginMetadata,
+    pub lines: &'static [(&'static str, &'static str)],
 }
 
 /// Owns the registered plugins and fans events out to the enabled ones.
@@ -266,6 +281,30 @@ impl PluginHost {
             }
         }
         out
+    }
+
+    /// One help page per enabled plugin, in plugin order — the dynamic tail of
+    /// the `?` help screen.
+    pub fn help_sections(&self) -> Vec<PluginHelpSection> {
+        self.slots
+            .iter()
+            .filter(|s| s.enabled)
+            .map(|s| PluginHelpSection {
+                metadata: s.plugin.metadata(),
+                lines: s.plugin.help(),
+            })
+            .collect()
+    }
+
+    /// Position of the plugin at slot `index` among the enabled plugins — i.e.
+    /// its offset into `help_sections()`. Lets the app jump the help screen
+    /// straight to a plugin's page (e.g. from its command submenu).
+    pub fn help_section_for(&self, index: usize) -> Option<usize> {
+        self.slots
+            .iter()
+            .enumerate()
+            .filter(|(_, s)| s.enabled)
+            .position(|(i, _)| i == index)
     }
 
     /// Enabled plugins that contribute at least one command, as (slot index,
@@ -385,5 +424,19 @@ mod tests {
         let hints = host.key_hints();
         assert_eq!(hints.iter().filter(|h| h.0 == "i").count(), 1);
         assert!(hints.contains(&("i", "view")));
+    }
+
+    #[test]
+    fn help_sections_cover_enabled_plugins() {
+        // Every built-in is enabled under cfg!(test), so each gets a help page.
+        let host = PluginHost::with_builtins();
+        assert_eq!(host.help_sections().len(), host.count());
+
+        // json-view is the 2nd registered plugin (slot 1); its page maps back to
+        // that slot and its help mentions the `i` key.
+        let idx = host.help_section_for(1).expect("json-view is enabled");
+        let sec = &host.help_sections()[idx];
+        assert_eq!(sec.metadata.name, "json-view");
+        assert!(sec.lines.iter().any(|(k, _)| *k == "i"));
     }
 }

@@ -41,6 +41,16 @@ impl Plugin for JsonView {
         // and this structured view.
         &[("i", "view")]
     }
+
+    fn help(&self) -> &'static [(&'static str, &'static str)] {
+        &[
+            (
+                "i",
+                "cycle the Payload pane between raw text and the JSON view",
+            ),
+            ("", "Pretty-prints and syntax-colors JSON payloads."),
+        ]
+    }
 }
 
 /// Accumulates styled spans into lines as the value is walked.

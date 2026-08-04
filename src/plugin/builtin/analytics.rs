@@ -39,6 +39,16 @@ impl Plugin for TrafficAnalytics {
         }
     }
 
+    fn help(&self) -> &'static [(&'static str, &'static str)] {
+        &[
+            ("m", "open the analytics pane from the command menu"),
+            (
+                "",
+                "Live stats: message rate, throughput, QoS mix, retained %, top topics.",
+            ),
+        ]
+    }
+
     fn on_event(&mut self, event: &PluginEvent) -> Vec<PluginAction> {
         match event {
             PluginEvent::Connected { .. } => *self = Self::default(),
