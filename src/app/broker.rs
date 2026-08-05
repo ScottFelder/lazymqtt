@@ -205,7 +205,7 @@ impl App {
                 let retain = if m.retained { " R" } else { "" };
                 out.push(DetailLine::plain(
                     format!(
-                        "{}  q{}{}",
+                        "{}  QoS {}{}",
                         m.time.format("%m/%d/%Y %H:%M:%S%.3f"),
                         m.qos,
                         retain
@@ -306,7 +306,7 @@ impl App {
 
             if expanded {
                 let meta = format!(
-                    "{}  q{}{}",
+                    "{}  QoS {}{}",
                     m.time.format("%m/%d/%Y %H:%M:%S%.3f"),
                     m.qos,
                     retain
@@ -324,7 +324,7 @@ impl App {
                 }
                 out.push(DetailLine::blank().with_msg(i));
             } else {
-                let meta = format!("{}  q{}{}", m.time.format("%H:%M:%S%.3f"), m.qos, retain);
+                let meta = format!("{}  QoS {}{}", m.time.format("%H:%M:%S%.3f"), m.qos, retain);
                 let preview: String = m
                     .payload
                     .lines()

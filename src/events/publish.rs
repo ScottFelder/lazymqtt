@@ -23,31 +23,46 @@ pub(crate) fn clear_retained_keys(app: &mut App, key: KeyEvent) {
 }
 
 pub(crate) fn subscribe_keys(app: &mut App, key: KeyEvent) {
+    use crate::app::SubForm;
+    let sf = &mut app.sub_form;
     match key.code {
         KeyCode::Esc => app.screen = Screen::Broker,
-        KeyCode::Backspace => {
-            app.sub_input.pop();
+        KeyCode::Tab | KeyCode::Down => sf.field = (sf.field + 1) % SubForm::FIELD_COUNT,
+        KeyCode::BackTab | KeyCode::Up => {
+            sf.field = (sf.field + SubForm::FIELD_COUNT - 1) % SubForm::FIELD_COUNT
         }
-        KeyCode::Char(c) => app.sub_input.push(c),
+        // QoS field: space / arrows cycle the level.
+        KeyCode::Char(' ') | KeyCode::Right if sf.field == 1 => sf.cycle_qos(true),
+        KeyCode::Left if sf.field == 1 => sf.cycle_qos(false),
+        KeyCode::Backspace if sf.field == 0 => {
+            sf.topic.pop();
+        }
+        KeyCode::Char(c) if sf.field == 0 => sf.topic.push(c),
         KeyCode::Enter => {
-            let topic = app.sub_input.trim().to_string();
+            let topic = sf.topic.trim().to_string();
+            let qos = sf.qos;
             if topic.is_empty() {
                 app.screen = Screen::Broker;
                 return;
             }
             app.send(MqttCommand::Subscribe {
                 topic: topic.clone(),
-                qos: 0,
+                qos,
             });
             if let Some(idx) = app.active {
                 if let Some(c) = app.config.connections.get_mut(idx) {
-                    if !c.subscriptions.iter().any(|s| s.topic == topic) {
-                        c.subscriptions.push(Subscription::new(topic.clone()));
-                        let _ = app.config.save();
+                    // Update the QoS if already subscribed, else add it.
+                    match c.subscriptions.iter_mut().find(|s| s.topic == topic) {
+                        Some(s) => s.qos = qos,
+                        None => c.subscriptions.push(Subscription {
+                            topic: topic.clone(),
+                            qos,
+                        }),
                     }
+                    let _ = app.config.save();
                 }
             }
-            app.error = Some(format!("subscribed to {}", topic));
+            app.error = Some(format!("subscribed to {} (QoS {})", topic, qos));
             app.screen = Screen::Broker;
         }
         _ => {}

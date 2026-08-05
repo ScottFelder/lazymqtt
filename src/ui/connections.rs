@@ -4,7 +4,7 @@ use ratatui::{
     layout::{Alignment, Rect},
     style::{Modifier, Style},
     text::{Line, Span},
-    widgets::{List, ListItem, ListState, Paragraph, Wrap},
+    widgets::{Clear, List, ListItem, ListState, Paragraph, Wrap},
     Frame,
 };
 
@@ -58,6 +58,11 @@ pub(crate) fn draw_form(f: &mut Frame, app: &App, area: Rect) {
     } else {
         "New Connection"
     };
+    let subs_summary = match form.subs.len() {
+        0 => "(none — space/→ to add)".to_string(),
+        1 => "1 subscription  (space/→ to edit)".to_string(),
+        n => format!("{n} subscriptions  (space/→ to edit)"),
+    };
     let fields = [
         ("Name", form.name.as_str()),
         ("Host", form.host.as_str()),
@@ -81,7 +86,7 @@ pub(crate) fn draw_form(f: &mut Frame, app: &App, area: Rect) {
                 "[ ] disabled (space to toggle)"
             },
         ),
-        ("Topics", form.topics.as_str()),
+        ("Subscriptions", subs_summary.as_str()),
     ];
 
     let mut lines = Vec::new();
@@ -98,7 +103,7 @@ pub(crate) fn draw_form(f: &mut Frame, app: &App, area: Rect) {
         } else {
             *val
         };
-        let cursor = if focused && i != 6 && i != 7 { "_" } else { "" };
+        let cursor = if focused && i < 6 { "_" } else { "" };
         lines.push(Line::from(vec![
             Span::styled(marker, Style::default().fg(pal.accent)),
             Span::styled(format!("{:<14}", label), label_style),
@@ -108,7 +113,7 @@ pub(crate) fn draw_form(f: &mut Frame, app: &App, area: Rect) {
         lines.push(Line::from(""));
     }
     lines.push(Line::from(Span::styled(
-        "Topics: comma-separated (e.g. sensors/#, home/+/temp)",
+        "Tab/↑↓: field · space: toggle/edit subscriptions · Enter: save · Esc: cancel",
         Style::default().fg(pal.dim),
     )));
 
@@ -116,4 +121,52 @@ pub(crate) fn draw_form(f: &mut Frame, app: &App, area: Rect) {
         .block(title_block(title, pal))
         .wrap(Wrap { trim: false });
     f.render_widget(p, area);
+}
+
+/// The connection's subscription sub-list (topic + QoS per row), shown over the
+/// connection form. Add / edit / delete rows before saving the connection.
+pub(crate) fn draw_subscription_list(f: &mut Frame, app: &App, area: Rect) {
+    let pal = &app.palette;
+    // Keep the connection form visible underneath for context.
+    draw_form(f, app, area);
+
+    let popup = center_rect(area, 64, 60);
+    f.render_widget(Clear, popup);
+
+    let items: Vec<ListItem> = if app.form.subs.is_empty() {
+        vec![ListItem::new(Line::from(Span::styled(
+            "  (no subscriptions — press a to add)",
+            Style::default().fg(pal.dim),
+        )))]
+    } else {
+        app.form
+            .subs
+            .iter()
+            .map(|s| {
+                ListItem::new(Line::from(vec![
+                    Span::styled(format!("{:<40}", s.topic), Style::default().fg(pal.text)),
+                    Span::styled(format!("QoS {}", s.qos), Style::default().fg(pal.dim)),
+                ]))
+            })
+            .collect()
+    };
+
+    let list = List::new(items)
+        .block(title_block(
+            "Subscriptions — a: add · e: edit · d: delete · Esc: back",
+            pal,
+        ))
+        .highlight_style(
+            Style::default()
+                .bg(pal.accent)
+                .fg(pal.selection_fg)
+                .add_modifier(Modifier::BOLD),
+        )
+        .highlight_symbol("▶ ");
+
+    let mut state = ListState::default();
+    if !app.form.subs.is_empty() {
+        state.select(Some(app.sub_list_selected.min(app.form.subs.len() - 1)));
+    }
+    f.render_stateful_widget(list, popup, &mut state);
 }

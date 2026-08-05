@@ -11,11 +11,12 @@ mod forms;
 mod recordings;
 mod schemas;
 mod screen;
+mod subscriptions;
 mod textarea;
 mod theme;
 mod view;
 
-pub use forms::{AlertForm, FormBuffer, PublishBuffer, SchemaForm, Status};
+pub use forms::{AlertForm, FormBuffer, PublishBuffer, SchemaForm, Status, SubForm};
 pub use screen::{Command, MenuAction, MenuItem, Screen, BROKER_COMMANDS};
 pub use textarea::TextArea;
 pub use view::{DetailKind, DetailLine, Focus, PaneFold};
@@ -65,13 +66,14 @@ pub struct App {
     // stable message id (collision-free, unlike the old millisecond timestamp).
     pub expanded_history: HashSet<u64>,
 
-    pub sub_input: String,          // buffer for the subscribe prompt
-    pub clear_topic: String,        // topic awaiting retained-message clear confirmation
-    pub plugins_selected: usize,    // cursor in the Plugins management screen
-    pub menu_selected: usize,       // cursor in the command menu
-    pub menu_items: Vec<MenuItem>,  // command-menu rows, rebuilt each open
+    pub sub_form: SubForm, // backs the subscribe prompt + the connection sub-list editor
+    pub sub_list_selected: usize, // cursor in the connection form's subscription sub-list
+    pub clear_topic: String, // topic awaiting retained-message clear confirmation
+    pub plugins_selected: usize, // cursor in the Plugins management screen
+    pub menu_selected: usize, // cursor in the command menu
+    pub menu_items: Vec<MenuItem>, // command-menu rows, rebuilt each open
     pub menu_plugin: Option<usize>, // None = top level; Some = a plugin's submenu
-    pub help_section: usize,        // 0 = core keybindings; 1.. = enabled plugins
+    pub help_section: usize, // 0 = core keybindings; 1.. = enabled plugins
 
     // Alert-rules editor (per connection). `alert_rules` is the working copy for
     // the connection identified by `alert_edit_conn` (name shown via
@@ -171,7 +173,8 @@ impl App {
             next_message_id: 0,
             history_selected: 0,
             expanded_history: HashSet::new(),
-            sub_input: String::new(),
+            sub_form: SubForm::default(),
+            sub_list_selected: 0,
             clear_topic: String::new(),
             plugins_selected: 0,
             menu_selected: 0,
@@ -514,6 +517,63 @@ mod tests {
         assert!(!app.expanded.contains("home/livingroom"));
         assert!(!app.expanded.contains("home/kitchen"));
         assert_eq!(app.selected_topic().as_deref(), Some("home"));
+    }
+
+    #[test]
+    fn subscription_editor_adds_edits_and_deletes() {
+        let mut app = App::new();
+        app.form = FormBuffer::default();
+
+        // Add two subscriptions via the form.
+        app.begin_subscription_add();
+        app.sub_form.topic = "home/#".into();
+        app.sub_form.qos = 1;
+        app.commit_subscription_form();
+        app.begin_subscription_add();
+        app.sub_form.topic = "sensors/temp".into();
+        app.sub_form.qos = 2;
+        app.commit_subscription_form();
+        assert_eq!(app.form.subs.len(), 2);
+        assert_eq!(app.form.subs[0].topic, "home/#");
+        assert_eq!(app.form.subs[0].qos, 1);
+        assert_eq!(app.form.subs[1].qos, 2);
+
+        // Edit the first in place (topic + QoS change, no new row).
+        app.sub_list_selected = 0;
+        app.begin_subscription_edit();
+        assert_eq!(app.sub_form.topic, "home/#");
+        app.sub_form.topic = "home/livingroom/#".into();
+        app.sub_form.qos = 0;
+        app.commit_subscription_form();
+        assert_eq!(app.form.subs.len(), 2);
+        assert_eq!(app.form.subs[0].topic, "home/livingroom/#");
+        assert_eq!(app.form.subs[0].qos, 0);
+
+        // Empty topic on commit is treated as cancel (no row added/changed).
+        app.begin_subscription_add();
+        app.sub_form.topic = "   ".into();
+        app.commit_subscription_form();
+        assert_eq!(app.form.subs.len(), 2);
+
+        // Delete keeps the cursor in range.
+        app.sub_list_selected = 1;
+        app.delete_selected_subscription();
+        assert_eq!(app.form.subs.len(), 1);
+        assert_eq!(app.form.subs[0].topic, "home/livingroom/#");
+    }
+
+    #[test]
+    fn sub_form_cycles_qos() {
+        let mut sf = SubForm::default();
+        assert_eq!(sf.qos, 0);
+        sf.cycle_qos(true);
+        assert_eq!(sf.qos, 1);
+        sf.cycle_qos(true);
+        assert_eq!(sf.qos, 2);
+        sf.cycle_qos(true); // wraps
+        assert_eq!(sf.qos, 0);
+        sf.cycle_qos(false); // wraps backward
+        assert_eq!(sf.qos, 2);
     }
 
     #[test]

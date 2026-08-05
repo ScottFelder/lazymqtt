@@ -45,7 +45,12 @@ pub fn draw(f: &mut Frame, app: &App) {
         }
         Screen::Subscribe => {
             broker::draw_broker(f, app, chunks[0]);
-            publish::draw_subscribe(f, &app.sub_input, chunks[0], pal);
+            publish::draw_subscribe(f, &app.sub_form, chunks[0], pal);
+        }
+        Screen::SubscriptionList => connections::draw_subscription_list(f, app, chunks[0]),
+        Screen::SubscriptionForm => {
+            connections::draw_subscription_list(f, app, chunks[0]);
+            publish::draw_subscription_form(f, &app.sub_form, chunks[0], pal);
         }
         Screen::ClearRetained => {
             broker::draw_broker(f, app, chunks[0]);
