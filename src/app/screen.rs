@@ -4,6 +4,8 @@
 pub enum Screen {
     Connections,
     ConnectionForm,
+    SubscriptionList,
+    SubscriptionForm,
     Broker,
     Publish,
     Subscribe,

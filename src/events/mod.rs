@@ -20,6 +20,8 @@ pub fn handle_key(app: &mut App, key: KeyEvent) {
     match app.screen {
         Screen::Connections => connections::connections_keys(app, key),
         Screen::ConnectionForm => connections::form_keys(app, key),
+        Screen::SubscriptionList => connections::subscription_list_keys(app, key),
+        Screen::SubscriptionForm => connections::subscription_form_keys(app, key),
         Screen::Broker => broker::broker_keys(app, key),
         Screen::Publish => publish::publish_keys(app, key),
         Screen::Subscribe => publish::subscribe_keys(app, key),
@@ -74,7 +76,9 @@ pub fn handle_paste(app: &mut App, data: String) {
             1 => app.publish.payload.push_str(&data),
             _ => {}
         },
-        Screen::Subscribe => app.sub_input.push_str(&strip_newlines(&data)),
+        Screen::Subscribe | Screen::SubscriptionForm if app.sub_form.field == 0 => {
+            app.sub_form.topic.push_str(&strip_newlines(&data))
+        }
         Screen::Recordings => {
             if let Some(buf) = app.recording_rename.as_mut() {
                 buf.push_str(&strip_newlines(&data));

@@ -1,4 +1,4 @@
-use crate::app::{App, Command, MenuAction, MenuItem, Screen, BROKER_COMMANDS};
+use crate::app::{App, Command, MenuAction, MenuItem, Screen, SubForm, BROKER_COMMANDS};
 
 impl App {
     /// Build the command-menu rows for the current level. The top level is the
@@ -155,7 +155,7 @@ impl App {
     pub fn run_command(&mut self, cmd: Command) {
         match cmd {
             Command::Subscribe => {
-                self.sub_input.clear();
+                self.sub_form = SubForm::default();
                 self.screen = Screen::Subscribe;
             }
             Command::Unsubscribe => self.unsubscribe_selected(),
