@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+<!-- Add changes here as they land; they become the next release's notes. -->
+
+## [0.1.3] - 2026-08-04
+
+### Added
+
+- The `?` help screen is now tabbed: a core "Keybindings" tab plus one tab per
+  enabled plugin, each showing that plugin's keys and notes. Tab / ←→ switch
+  tabs, 1-9 jump. Plugins contribute their own help via a new `Plugin::help`
+  method, so the help stays in sync with what's enabled.
+- Pressing `?` inside a plugin's command submenu opens the help straight to that
+  plugin's tab.
+
 ### Changed
 
 - Message panes now label the quality-of-service as `QoS 0` (etc.) instead of
@@ -17,15 +30,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   topic + QoS) that you add / edit / delete, replacing the single
   comma-separated topics field. Open it from the Subscriptions field with
   space/→.
-
-### Added
-
-- The `?` help screen is now tabbed: a core "Keybindings" tab plus one tab per
-  enabled plugin, each showing that plugin's keys and notes. Tab / ←→ switch
-  tabs, 1-9 jump. Plugins contribute their own help via a new `Plugin::help`
-  method, so the help stays in sync with what's enabled.
-- Pressing `?` inside a plugin's command submenu opens the help straight to that
-  plugin's tab.
 
 ## [0.1.2] - 2026-08-01
 
@@ -83,7 +87,8 @@ Initial public release.
   the old macOS `Application Support` location.
 - `--version` / `--help` command-line flags.
 
-[Unreleased]: https://github.com/ScottFelder/lazymqtt/compare/v0.1.2...HEAD
+[Unreleased]: https://github.com/ScottFelder/lazymqtt/compare/v0.1.3...HEAD
+[0.1.3]: https://github.com/ScottFelder/lazymqtt/compare/v0.1.2...v0.1.3
 [0.1.2]: https://github.com/ScottFelder/lazymqtt/compare/v0.1.1...v0.1.2
 [0.1.1]: https://github.com/ScottFelder/lazymqtt/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/ScottFelder/lazymqtt/releases/tag/v0.1.0
