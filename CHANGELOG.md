@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Message panes now label the quality-of-service as `QoS 0` (etc.) instead of
+  the terse `q0`.
+- The Subscribe prompt now has a QoS selector (Tab to the field, space/←→ to
+  cycle 0/1/2); the chosen QoS is used for the subscription and saved.
+- Connection edit: subscriptions are now a managed sub-list (each with its own
+  topic + QoS) that you add / edit / delete, replacing the single
+  comma-separated topics field. Open it from the Subscriptions field with
+  space/→.
+
 ### Added
 
 - The `?` help screen is now tabbed: a core "Keybindings" tab plus one tab per

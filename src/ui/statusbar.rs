@@ -35,7 +35,25 @@ pub(crate) fn draw_statusbar(f: &mut Frame, app: &App, area: Rect) {
             ("?", "help"),
             ("q", "quit"),
         ],
-        Screen::ConnectionForm => &[("Tab", "field"), ("Enter", "save"), ("Esc", "cancel")],
+        Screen::ConnectionForm => &[
+            ("Tab", "field"),
+            ("space/→", "edit subscriptions"),
+            ("Enter", "save"),
+            ("Esc", "cancel"),
+        ],
+        Screen::SubscriptionList => &[
+            ("j/k", "move"),
+            ("a", "add"),
+            ("e", "edit"),
+            ("d", "delete"),
+            ("Esc", "back"),
+        ],
+        Screen::SubscriptionForm => &[
+            ("Tab", "field"),
+            ("space/←→", "QoS"),
+            ("Enter", "save"),
+            ("Esc", "cancel"),
+        ],
         Screen::Broker if app.focus == Focus::Payload => &[
             ("hjkl", "move"),
             ("v", "select"),

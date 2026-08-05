@@ -2,7 +2,7 @@
 //! alert-rule form, schema form) plus the connection `Status` enum.
 
 use crate::app::TextArea;
-use crate::config::Connection;
+use crate::config::{Connection, Subscription};
 use crate::plugin::{AlertCondition, AlertRule, AlertSeverity, SchemaMapping};
 use serde_json::Value;
 
@@ -24,8 +24,8 @@ pub struct FormBuffer {
     pub password: String,
     pub tls: bool,
     pub tls_verify: bool,
-    pub topics: String, // newline/comma separated
-    pub field: usize,   // which field is focused
+    pub subs: Vec<Subscription>, // managed via the subscription sub-list
+    pub field: usize,            // which field is focused
 }
 
 impl Default for FormBuffer {
@@ -40,7 +40,7 @@ impl Default for FormBuffer {
             password: String::new(),
             tls: false,
             tls_verify: true,
-            topics: String::new(),
+            subs: Vec::new(),
             field: 0,
         }
     }
@@ -60,14 +60,43 @@ impl FormBuffer {
             password: conn.password.clone(),
             tls: conn.tls,
             tls_verify: conn.tls_verify,
-            topics: conn
-                .subscriptions
-                .iter()
-                .map(|s| s.topic.clone())
-                .collect::<Vec<_>>()
-                .join(", "),
+            subs: conn.subscriptions.clone(),
             field: 0,
         }
+    }
+}
+
+/// Editable buffer backing the subscribe prompt and the connection form's
+/// subscription editor. `editing_index` is the index into a connection's
+/// subscription list when editing an existing one (`None` when adding, or for
+/// the live subscribe prompt). `field` is 0 for the topic, 1 for QoS.
+#[derive(Default)]
+pub struct SubForm {
+    pub editing_index: Option<usize>,
+    pub topic: String,
+    pub qos: u8,
+    pub field: usize,
+}
+
+impl SubForm {
+    pub const FIELD_COUNT: usize = 2;
+
+    pub fn from_subscription(index: usize, sub: &Subscription) -> Self {
+        Self {
+            editing_index: Some(index),
+            topic: sub.topic.clone(),
+            qos: sub.qos,
+            field: 0,
+        }
+    }
+
+    /// Cycle QoS 0 → 1 → 2 → 0 (or backward), clamped to valid MQTT levels.
+    pub fn cycle_qos(&mut self, forward: bool) {
+        self.qos = if forward {
+            (self.qos + 1) % 3
+        } else {
+            (self.qos + 2) % 3
+        };
     }
 }
 

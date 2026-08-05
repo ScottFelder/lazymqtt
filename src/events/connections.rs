@@ -28,7 +28,7 @@ pub(crate) fn connections_keys(app: &mut App, key: KeyEvent) {
         KeyCode::Char('n') => {
             app.form = FormBuffer {
                 port: "1883".into(),
-                topics: "#".into(),
+                subs: vec![Subscription::new("#")],
                 ..Default::default()
             };
             app.screen = Screen::ConnectionForm;
@@ -91,6 +91,9 @@ pub(crate) fn form_keys(app: &mut App, key: KeyEvent) {
         }
         KeyCode::Char(' ') if f.field == 6 => f.tls = !f.tls,
         KeyCode::Char(' ') if f.field == 7 => f.tls_verify = !f.tls_verify,
+        // The Subscriptions field opens the sub-list (space/→, like the toggles
+        // act on their field); Enter still saves the whole connection.
+        KeyCode::Char(' ') | KeyCode::Right if f.field == 8 => app.open_subscription_list(),
         KeyCode::Char(c) => {
             let is_port = f.field == 2;
             if let Some(s) = field_mut(f) {
@@ -109,6 +112,47 @@ pub(crate) fn form_keys(app: &mut App, key: KeyEvent) {
     }
 }
 
+pub(crate) fn subscription_list_keys(app: &mut App, key: KeyEvent) {
+    let len = app.form.subs.len();
+    match key.code {
+        KeyCode::Esc => app.screen = Screen::ConnectionForm,
+        KeyCode::Char('j') | KeyCode::Down => {
+            if len > 0 {
+                app.sub_list_selected = (app.sub_list_selected + 1) % len;
+            }
+        }
+        KeyCode::Char('k') | KeyCode::Up => {
+            if len > 0 {
+                app.sub_list_selected = (app.sub_list_selected + len - 1) % len;
+            }
+        }
+        KeyCode::Char('a') => app.begin_subscription_add(),
+        KeyCode::Char('e') | KeyCode::Enter => app.begin_subscription_edit(),
+        KeyCode::Char('d') => app.delete_selected_subscription(),
+        _ => {}
+    }
+}
+
+pub(crate) fn subscription_form_keys(app: &mut App, key: KeyEvent) {
+    use crate::app::SubForm;
+    let sf = &mut app.sub_form;
+    match key.code {
+        KeyCode::Esc => app.screen = Screen::SubscriptionList,
+        KeyCode::Tab | KeyCode::Down => sf.field = (sf.field + 1) % SubForm::FIELD_COUNT,
+        KeyCode::BackTab | KeyCode::Up => {
+            sf.field = (sf.field + SubForm::FIELD_COUNT - 1) % SubForm::FIELD_COUNT
+        }
+        KeyCode::Char(' ') | KeyCode::Right if sf.field == 1 => sf.cycle_qos(true),
+        KeyCode::Left if sf.field == 1 => sf.cycle_qos(false),
+        KeyCode::Backspace if sf.field == 0 => {
+            sf.topic.pop();
+        }
+        KeyCode::Char(c) if sf.field == 0 => sf.topic.push(c),
+        KeyCode::Enter => app.commit_subscription_form(),
+        _ => {}
+    }
+}
+
 pub(crate) fn field_mut(f: &mut FormBuffer) -> Option<&mut String> {
     match f.field {
         0 => Some(&mut f.name),
@@ -117,8 +161,7 @@ pub(crate) fn field_mut(f: &mut FormBuffer) -> Option<&mut String> {
         3 => Some(&mut f.client_id),
         4 => Some(&mut f.username),
         5 => Some(&mut f.password),
-        8 => Some(&mut f.topics),
-        _ => None,
+        _ => None, // 6/7 toggles, 8 opens the subscription sub-list
     }
 }
 
@@ -130,11 +173,10 @@ fn save_form(app: &mut App) {
     }
     let port: u16 = f.port.trim().parse().unwrap_or(1883);
     let subs: Vec<Subscription> = f
-        .topics
-        .split(',')
-        .map(|t| t.trim())
-        .filter(|t| !t.is_empty())
-        .map(Subscription::new)
+        .subs
+        .iter()
+        .filter(|s| !s.topic.trim().is_empty())
+        .cloned()
         .collect();
 
     let mut conn = Connection::new(f.name.trim(), f.host.trim(), port);
