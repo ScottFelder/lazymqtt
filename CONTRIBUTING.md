@@ -62,6 +62,11 @@ cargo test                 # unit tests must pass
   - `app/` owns the state and its behavior.
   - `mqtt.rs` is the only place that talks to the broker.
 - **Prefer small, cohesive modules** — one concern per file, low coupling.
+- **Leave the code cleaner than you found it.** Pay down technical debt as you
+  go: when your change touches messy, duplicated, or awkward code, refactor it
+  in the same branch (extract shared helpers, remove duplication, simplify
+  adjacent rough spots) rather than bolting new code on. Keep the refactor
+  scoped so the diff stays reviewable.
 - `AGENTS.md` is the detailed map of the codebase (module layout, the plugin
   API, the theming model, the command-menu registry). Read it before a
   non-trivial change.
@@ -78,8 +83,10 @@ the plugin section of `AGENTS.md` for the full API and the event/action flow.
 
 ## Commit & pull request process
 
-1. Fork the repo and create a topic branch off `master`
-   (`git checkout -b fix-topic-tree-crash`).
+1. Create a branch off `master` for your change
+   (`git checkout -b fix-topic-tree-crash`) — **every feature or non-trivial
+   change gets its own branch; nothing new lands directly on `master`**, which
+   stays releasable. (External contributors: fork first.)
 2. Make focused commits with clear messages (imperative mood, e.g.
    "Fix panic when a retained payload is empty").
 3. If your change is user-visible, add a bullet under `## [Unreleased]` in
