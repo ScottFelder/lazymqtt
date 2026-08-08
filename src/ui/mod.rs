@@ -10,6 +10,7 @@ mod help;
 mod menu;
 mod pane;
 mod plugins;
+mod protos;
 mod publish;
 mod recordings;
 mod schemas;
@@ -61,6 +62,8 @@ pub fn draw(f: &mut Frame, app: &App) {
         Screen::AlertRuleForm => alerts::draw_alert_rule_form(f, app, chunks[0]),
         Screen::Schemas => schemas::draw_schemas(f, app, chunks[0]),
         Screen::SchemaForm => schemas::draw_schema_form(f, app, chunks[0]),
+        Screen::Protos => protos::draw_protos(f, app, chunks[0]),
+        Screen::ProtoForm => protos::draw_proto_form(f, app, chunks[0]),
         Screen::Recordings => recordings::draw_recordings(f, app, chunks[0]),
         Screen::RecordingEdit => recordings::draw_recording_edit(f, app, chunks[0]),
         Screen::Theme => theme::draw_theme(f, app, chunks[0]),

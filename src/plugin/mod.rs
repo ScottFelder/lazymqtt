@@ -20,6 +20,7 @@ pub mod api;
 mod builtin;
 mod config;
 pub mod generators;
+pub mod protos;
 pub mod recordings;
 pub mod schemas;
 pub mod templates;
@@ -30,6 +31,7 @@ pub use api::{
     Annotation, InspectMessage, InspectorStyle, InspectorView, PaneStyle, PaneView, PluginAction,
     PluginCommand, PluginContext, PluginEvent, PluginMetadata, Severity,
 };
+pub use protos::ProtoMapping;
 pub use recordings::Recording;
 pub use schemas::SchemaMapping;
 pub use templates::PublishTemplate;
@@ -59,6 +61,26 @@ pub fn load_schemas(connection_id: &str) -> Vec<SchemaMapping> {
 /// Persist a connection's JSON Schema mappings to the plugin config dir.
 pub fn save_schemas(connection_id: &str, mappings: &[SchemaMapping]) -> std::io::Result<()> {
     schemas::save(&plugin_config_dir(), connection_id, mappings)
+}
+
+/// Load a connection's protobuf mappings from the plugin config dir.
+pub fn load_protos(connection_id: &str) -> Vec<ProtoMapping> {
+    protos::load(&plugin_config_dir(), connection_id)
+}
+
+/// Persist a connection's protobuf mappings to the plugin config dir.
+pub fn save_protos(connection_id: &str, mappings: &[ProtoMapping]) -> std::io::Result<()> {
+    protos::save(&plugin_config_dir(), connection_id, mappings)
+}
+
+/// Validate a protobuf mapping by compiling its `.proto` and resolving the
+/// message type; returns `Ok(())` or a human-readable error for the editor.
+pub fn compile_proto(
+    connection_id: &str,
+    slot: usize,
+    mapping: &ProtoMapping,
+) -> Result<(), String> {
+    protos::compile(&plugin_config_dir(), connection_id, slot, mapping).map(|_| ())
 }
 
 /// Save (or replace by name) a global publish template.

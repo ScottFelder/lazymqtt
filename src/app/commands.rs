@@ -182,6 +182,7 @@ impl App {
             Command::CollapseSubtree => self.collapse_subtree(),
             Command::AlertRules => self.open_alerts_editor(),
             Command::Schemas => self.open_schemas(),
+            Command::Protos => self.open_protos(),
             Command::Recordings => self.open_recordings(),
             Command::Theme => self.open_theme(),
             Command::Plugins => {

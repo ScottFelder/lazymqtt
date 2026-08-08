@@ -23,6 +23,7 @@ impl App {
             id: msg.id,
             topic: msg.topic.clone(),
             payload: msg.payload.clone(),
+            payload_raw: msg.payload_raw.clone(),
             qos: msg.qos,
             retained: msg.retained,
         };
