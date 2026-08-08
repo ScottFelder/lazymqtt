@@ -136,11 +136,11 @@ impl App {
 
     /// Call whenever the selected topic changes: jumps the History pane back
     /// to the latest message, collapses any expanded entries, and clears any
-    /// in-progress Payload selection.
+    /// in-progress Payload selection. The chosen payload view (`payload_view`)
+    /// is intentionally left untouched so it stays sticky across messages.
     pub fn reset_message_view(&mut self) {
         self.history_selected = 0;
         self.expanded_history.clear();
-        self.payload_view = 0;
         self.reset_selection();
     }
 
@@ -220,16 +220,16 @@ impl App {
                 }
                 out.push(DetailLine::blank());
 
-                // Body: the raw payload (view 0) or a plugin inspector view.
-                let views = self.current_inspector_views();
-                match self.payload_view.min(views.len()).checked_sub(1) {
+                // Body: the raw payload, or the preferred plugin inspector view
+                // when this message can produce it (else fall back to raw).
+                match self.active_inspector_view() {
                     None => {
                         for line in m.payload.lines() {
                             out.push(DetailLine::indented(2, line, DetailKind::Payload));
                         }
                     }
-                    Some(i) => {
-                        for line in &views[i].lines {
+                    Some(view) => {
+                        for line in &view.lines {
                             let segs = line
                                 .iter()
                                 .map(|sp| (sp.text.clone(), DetailKind::Syntax(sp.style)))
@@ -261,25 +261,46 @@ impl App {
         }
     }
 
-    /// Cycle the Payload pane through raw text and each available inspector
-    /// view. The line set changes, so any in-progress selection is reset.
+    /// The preferred inspector view for the selected message, if the preference
+    /// is set and this message can actually produce that view. Returns `None`
+    /// (render raw) when the preference is raw or unavailable for this message.
+    fn active_inspector_view(&self) -> Option<InspectorView> {
+        let want = self.payload_view.as_deref()?;
+        self.current_inspector_views()
+            .into_iter()
+            .find(|v| v.label == want)
+    }
+
+    /// Cycle the preferred Payload view through raw and each enabled view
+    /// plugin's label, in plugin order (independent of the current message so
+    /// the order is stable). The line set may change, so selection is reset.
     pub fn cycle_payload_view(&mut self) {
-        let count = self.current_inspector_views().len() + 1; // +1 for raw
-        self.payload_view = (self.payload_view + 1) % count;
+        let labels = self.plugins.inspector_labels();
+        // Current position in the cycle: 0 = raw, 1.. = labels; an unknown
+        // preference (its plugin was disabled) restarts from raw.
+        let pos = match self.payload_view.as_deref() {
+            None => 0,
+            Some(cur) => labels
+                .iter()
+                .position(|l| *l == cur)
+                .map(|i| i + 1)
+                .unwrap_or(0),
+        };
+        let next = (pos + 1) % (labels.len() + 1);
+        self.payload_view = (next != 0).then(|| labels[next - 1].to_string());
         self.reset_selection();
     }
 
-    /// Label of the active Payload view, or `None` when only the raw view
-    /// exists (nothing to switch to).
+    /// Label shown in the Payload pane title: the effective view for the
+    /// selected message ("raw" or a plugin label), or `None` when this message
+    /// offers no alternate views and the preference isn't rendering (nothing to
+    /// hint).
     pub fn payload_view_label(&self) -> Option<String> {
-        let views = self.current_inspector_views();
-        if views.is_empty() {
-            return None;
+        match self.active_inspector_view() {
+            Some(view) => Some(view.label),
+            None if self.current_inspector_views().is_empty() => None,
+            None => Some("raw".to_string()),
         }
-        Some(match self.payload_view.min(views.len()).checked_sub(1) {
-            None => "raw".to_string(),
-            Some(i) => views[i].label.clone(),
-        })
     }
 
     /// The History pane contents: every message for the selected topic, newest

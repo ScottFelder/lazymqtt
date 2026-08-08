@@ -138,6 +138,8 @@ Built-in plugins, each with its own demo:
 
 ![json-view demo](assets/json-view.gif)
 
+**xml-view** — pretty-prints XML payloads (syntax-colored) as an alternate Payload view (`i`). The `i` key cycles the Payload pane through raw and every enabled view plugin (e.g. raw → JSON → XML), and the chosen view sticks as you move between messages.
+
 **topic-alerts** — raises alerts (annotations + status) from **per-connection** rules, including numbers pulled from a JSON field.
 
 ![topic-alerts demo](assets/topic-alerts.gif)
@@ -260,9 +262,9 @@ src/
     config.rs    per-plugin enable/disable persistence
     schemas.rs / alerts_rules.rs / recordings.rs / templates.rs /
     generators.rs / topics.rs   shared models + validators + topic matching
-    builtin/     bundled plugins (json-marker, json-view, topic-alerts,
-                 json-schema, publish-templates, payload-generator,
-                 traffic-analytics, topic-recorder)
+    builtin/     bundled plugins (json-marker, json-view, xml-view,
+                 topic-alerts, json-schema, publish-templates,
+                 payload-generator, traffic-analytics, topic-recorder)
 ```
 
 ## Contributing

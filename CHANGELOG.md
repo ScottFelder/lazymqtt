@@ -7,7 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-<!-- Add changes here as they land; they become the next release's notes. -->
+### Added
+
+- **xml-view** plugin — pretty-prints and syntax-colors XML payloads as an
+  alternate Payload view, the XML counterpart to json-view.
+
+### Changed
+
+- The Payload view choice (`i`) is now **sticky**: once you pick a view (e.g.
+  JSON) it stays selected as you move between messages, instead of reverting to
+  raw. A message that can't produce the chosen view shows raw without losing the
+  preference.
+- `i` now cycles through raw plus **every enabled view plugin** (e.g. raw → JSON
+  → XML). Enabling or disabling a view plugin adds or removes it from the cycle.
 
 ## [0.1.3] - 2026-08-04
 

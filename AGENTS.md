@@ -66,9 +66,9 @@ plugin/      In-process plugin API + host + built-in plugins.
   mod.rs       Plugin trait, PluginHost (dispatch, enable/disable, inspect).
   api.rs       PluginEvent / PluginAction / Annotation / Inspector* types.
   config.rs    per-plugin enable/disable, persisted under plugins/.
-  builtin/     bundled plugins (json-marker, json-view, topic-alerts,
-               json-schema, publish-templates, payload-generator,
-               traffic-analytics, topic-recorder).
+  builtin/     bundled plugins (json-marker, json-view, xml-view,
+               topic-alerts, json-schema, publish-templates,
+               payload-generator, traffic-analytics, topic-recorder).
   topics.rs    shared MQTT topic-filter matching (`+`/`#`).
   schemas.rs   per-connection topic→schema mappings + subset validator.
   templates.rs global publish presets (topic/payload/QoS/retain).
@@ -187,6 +187,10 @@ only what it needs:
   (annotate a message, publish, (un)subscribe, show a status).
 - `inspect(&InspectMessage) -> Option<InspectorView>` — supply an alternative
   Payload rendering (e.g. pretty JSON); the raw view always stays available.
+  Pair it with `inspector_label() -> Option<&'static str>` (the stable view
+  name, e.g. "XML") so the view joins the `i` toggle list even on messages it
+  can't render. `App::payload_view` stores the chosen label and is sticky
+  across messages (a message that can't produce it falls back to raw).
 - `commands(&self) -> Vec<PluginCommand>` / `invoke(&mut self, id) -> Vec<PluginAction>`
   — contribute entries to the `m` command menu and handle them. Labels are
   computed in `commands()` so they can reflect state ("Stop recording (N msgs)").
