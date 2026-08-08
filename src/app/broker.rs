@@ -1,5 +1,7 @@
 use super::{annotation_marker, selection_text, severity_glyph};
-use crate::app::{App, DetailKind, DetailLine, Focus, PaneFold, PublishBuffer, Screen};
+use crate::app::{
+    App, DetailKind, DetailLine, Focus, PaneFold, PayloadView, PublishBuffer, Screen,
+};
 use crate::mqtt::{Message, MqttCommand};
 use crate::plugin::{InspectMessage, InspectorView};
 
@@ -261,46 +263,63 @@ impl App {
         }
     }
 
-    /// The preferred inspector view for the selected message, if the preference
-    /// is set and this message can actually produce that view. Returns `None`
-    /// (render raw) when the preference is raw or unavailable for this message.
+    /// The inspector view to render for the selected message given the current
+    /// preference, or `None` to render raw text. `Auto` and a `Named` view that
+    /// this message can't produce both fall back to the first available view, so
+    /// a payload auto-selects its matching structured format.
     fn active_inspector_view(&self) -> Option<InspectorView> {
-        let want = self.payload_view.as_deref()?;
-        self.current_inspector_views()
-            .into_iter()
-            .find(|v| v.label == want)
+        let mut avail = self.current_inspector_views();
+        if avail.is_empty() {
+            return None;
+        }
+        match &self.payload_view {
+            PayloadView::Raw => None,
+            PayloadView::Auto => Some(avail.remove(0)),
+            PayloadView::Named(label) => {
+                let idx = avail.iter().position(|v| &v.label == label).unwrap_or(0);
+                Some(avail.remove(idx))
+            }
+        }
     }
 
-    /// Cycle the preferred Payload view through raw and each enabled view
-    /// plugin's label, in plugin order (independent of the current message so
-    /// the order is stable). The line set may change, so selection is reset.
+    /// Cycle the Payload view among the views this message can actually produce
+    /// plus raw — so on a JSON message it toggles raw ↔ JSON with no dead step,
+    /// and likewise raw ↔ XML on XML. The preference is sticky across messages.
     pub fn cycle_payload_view(&mut self) {
-        let labels = self.plugins.inspector_labels();
-        // Current position in the cycle: 0 = raw, 1.. = labels; an unknown
-        // preference (its plugin was disabled) restarts from raw.
-        let pos = match self.payload_view.as_deref() {
-            None => 0,
-            Some(cur) => labels
-                .iter()
-                .position(|l| *l == cur)
-                .map(|i| i + 1)
-                .unwrap_or(0),
+        let labels: Vec<String> = self
+            .current_inspector_views()
+            .into_iter()
+            .map(|v| v.label)
+            .collect();
+        if labels.is_empty() {
+            return; // nothing to toggle for this message
+        }
+        // Position in [views…, raw] of what's shown now.
+        let shown = self.active_inspector_view().map(|v| v.label);
+        let cur = match shown {
+            Some(l) => labels.iter().position(|x| *x == l).unwrap_or(labels.len()),
+            None => labels.len(), // raw
         };
-        let next = (pos + 1) % (labels.len() + 1);
-        self.payload_view = (next != 0).then(|| labels[next - 1].to_string());
+        let next = (cur + 1) % (labels.len() + 1);
+        self.payload_view = if next == labels.len() {
+            PayloadView::Raw
+        } else {
+            PayloadView::Named(labels[next].clone())
+        };
         self.reset_selection();
     }
 
     /// Label shown in the Payload pane title: the effective view for the
     /// selected message ("raw" or a plugin label), or `None` when this message
-    /// offers no alternate views and the preference isn't rendering (nothing to
-    /// hint).
+    /// offers no alternate views (nothing to hint).
     pub fn payload_view_label(&self) -> Option<String> {
-        match self.active_inspector_view() {
-            Some(view) => Some(view.label),
-            None if self.current_inspector_views().is_empty() => None,
-            None => Some("raw".to_string()),
+        if self.current_inspector_views().is_empty() {
+            return None;
         }
+        Some(match self.active_inspector_view() {
+            Some(view) => view.label,
+            None => "raw".to_string(),
+        })
     }
 
     /// The History pane contents: every message for the selected topic, newest

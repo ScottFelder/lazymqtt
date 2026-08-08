@@ -14,12 +14,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- The Payload view choice (`i`) is now **sticky**: once you pick a view (e.g.
-  JSON) it stays selected as you move between messages, instead of reverting to
-  raw. A message that can't produce the chosen view shows raw without losing the
-  preference.
-- `i` now cycles through raw plus **every enabled view plugin** (e.g. raw → JSON
-  → XML). Enabling or disabling a view plugin adds or removes it from the cycle.
+- The Payload pane now **auto-selects** the structured view matching each
+  payload: a JSON payload shows json-view, an XML payload shows xml-view (when
+  the plugin is enabled), with no keypress needed.
+- The Payload view choice (`i`) is now **sticky** across messages: switching to
+  raw stays raw, and the auto choice keeps picking the matching view as you move
+  between messages, instead of reverting each time.
+- `i` toggles only between raw and the view(s) the current message can actually
+  produce — so on a JSON message it's raw ↔ JSON with no dead step (previously it
+  also stopped on inapplicable views like XML).
 
 ## [0.1.3] - 2026-08-04
 

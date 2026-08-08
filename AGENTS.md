@@ -186,11 +186,11 @@ only what it needs:
 - `on_event(&PluginEvent) -> Vec<PluginAction>` — observe and react
   (annotate a message, publish, (un)subscribe, show a status).
 - `inspect(&InspectMessage) -> Option<InspectorView>` — supply an alternative
-  Payload rendering (e.g. pretty JSON); the raw view always stays available.
-  Pair it with `inspector_label() -> Option<&'static str>` (the stable view
-  name, e.g. "XML") so the view joins the `i` toggle list even on messages it
-  can't render. `App::payload_view` stores the chosen label and is sticky
-  across messages (a message that can't produce it falls back to raw).
+  Payload rendering (e.g. pretty JSON); the raw view always stays available. The
+  `InspectorView.label` names the view (e.g. "JSON"). `App::payload_view`
+  (`PayloadView`: Auto / Raw / Named) is sticky across messages; `Auto` (default)
+  auto-selects the matching view per payload, and `i` toggles only among the
+  views the current message can produce plus raw.
 - `commands(&self) -> Vec<PluginCommand>` / `invoke(&mut self, id) -> Vec<PluginAction>`
   — contribute entries to the `m` command menu and handle them. Labels are
   computed in `commands()` so they can reflect state ("Stop recording (N msgs)").

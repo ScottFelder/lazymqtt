@@ -19,6 +19,23 @@ pub enum PaneFold {
     History,
 }
 
+/// The Payload pane's view preference, sticky across message/topic selection.
+///
+/// - `Auto` (the default) shows the structured view matching the payload — e.g.
+///   JSON for a JSON payload, XML for XML — when a matching view plugin is
+///   enabled, falling back to raw text otherwise. This is what makes a payload
+///   auto-select its format.
+/// - `Raw` forces the raw text on every message.
+/// - `Named(label)` prefers a specific view (e.g. after cycling with `i`), and
+///   falls back to the auto choice on messages that can't produce it — so it
+///   still auto-selects across differing payload types.
+#[derive(Debug, PartialEq, Eq, Clone)]
+pub enum PayloadView {
+    Auto,
+    Raw,
+    Named(String),
+}
+
 /// Semantic role of a piece of a detail line; the renderer maps it to a color.
 #[derive(PartialEq, Eq, Clone, Copy)]
 pub enum DetailKind {

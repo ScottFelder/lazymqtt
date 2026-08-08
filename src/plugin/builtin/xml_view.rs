@@ -47,10 +47,6 @@ impl Plugin for XmlView {
         })
     }
 
-    fn inspector_label(&self) -> Option<&'static str> {
-        Some("XML")
-    }
-
     fn key_hints(&self) -> &'static [(&'static str, &'static str)] {
         &[("i", "view")]
     }
