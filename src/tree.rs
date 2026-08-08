@@ -127,6 +127,7 @@ mod tests {
             id: 0,
             topic: topic.into(),
             payload: "x".into(),
+            payload_raw: b"x".to_vec(),
             qos: 0,
             retained: false,
             time: Local::now(),

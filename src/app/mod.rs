@@ -8,6 +8,7 @@ mod broker;
 mod commands;
 mod connection;
 mod forms;
+mod protos;
 mod recordings;
 mod schemas;
 mod screen;
@@ -16,14 +17,14 @@ mod textarea;
 mod theme;
 mod view;
 
-pub use forms::{AlertForm, FormBuffer, PublishBuffer, SchemaForm, Status, SubForm};
+pub use forms::{AlertForm, FormBuffer, ProtoForm, PublishBuffer, SchemaForm, Status, SubForm};
 pub use screen::{Command, MenuAction, MenuItem, Screen, BROKER_COMMANDS};
 pub use textarea::TextArea;
 pub use view::{DetailKind, DetailLine, Focus, PaneFold, PayloadView};
 
 use crate::config::Config;
 use crate::mqtt::{Message, MqttHandle};
-use crate::plugin::{AlertRule, Annotation, PluginHost, Recording, Severity};
+use crate::plugin::{AlertRule, Annotation, PluginHost, ProtoMapping, Recording, Severity};
 use crate::theme::{Palette, Theme};
 use crate::tree::TopicTree;
 use std::collections::{HashMap, HashSet};
@@ -111,6 +112,16 @@ pub struct App {
     pub schema_edit_conn: String,
     pub schema_edit_name: String,
     pub schema_form: SchemaForm,
+
+    // Protobuf mapping editor (per connection), mirroring the schema editor:
+    // `proto_mappings` is the working copy for `proto_edit_conn`
+    // (name in `proto_edit_name`); `protos_selected` is the list cursor;
+    // `proto_form` backs the add/edit form.
+    pub proto_mappings: Vec<ProtoMapping>,
+    pub protos_selected: usize,
+    pub proto_edit_conn: String,
+    pub proto_edit_name: String,
+    pub proto_form: ProtoForm,
 
     // Theming. `theme` is the editable spec set; `palette` is its resolved
     // ratatui colors, which the renderer reads (recomputed on every change).
@@ -201,6 +212,11 @@ impl App {
             schema_edit_conn: String::new(),
             schema_edit_name: String::new(),
             schema_form: SchemaForm::default(),
+            proto_mappings: Vec::new(),
+            protos_selected: 0,
+            proto_edit_conn: String::new(),
+            proto_edit_name: String::new(),
+            proto_form: ProtoForm::default(),
             payload_view: PayloadView::Auto,
             error: None,
             sel_cursor: (0, 0),
@@ -277,6 +293,7 @@ mod tests {
             id: 0, // push_message assigns the real id
             topic: topic.into(),
             payload: payload.into(),
+            payload_raw: payload.as_bytes().to_vec(),
             qos: 0,
             retained: false,
             time: Local::now(),
@@ -457,6 +474,7 @@ mod tests {
             id: 7,
             topic: "t".into(),
             payload: r#"{"ok":true}"#.into(),
+            payload_raw: br#"{"ok":true}"#.to_vec(),
             qos: 0,
             retained: false,
         });

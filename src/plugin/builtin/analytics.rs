@@ -201,6 +201,7 @@ mod tests {
             id: 0,
             topic: topic.into(),
             payload: payload.into(),
+            payload_raw: payload.as_bytes().to_vec(),
             qos,
             retained,
         }
