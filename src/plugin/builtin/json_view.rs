@@ -36,10 +36,6 @@ impl Plugin for JsonView {
         })
     }
 
-    fn inspector_label(&self) -> Option<&'static str> {
-        Some("JSON")
-    }
-
     fn key_hints(&self) -> &'static [(&'static str, &'static str)] {
         // Makes `i` (cycle payload view) meaningful — it toggles the raw payload
         // and this structured view.
