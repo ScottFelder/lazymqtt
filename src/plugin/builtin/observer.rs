@@ -76,6 +76,7 @@ mod tests {
             id,
             topic: "t".into(),
             payload: payload.into(),
+            payload_raw: payload.as_bytes().to_vec(),
             qos: 0,
             retained: false,
         }

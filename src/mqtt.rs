@@ -73,7 +73,11 @@ pub struct Message {
     /// plugin annotations and history state key off something collision-free.
     pub id: u64,
     pub topic: String,
+    /// Lossy UTF-8 rendering of the payload, for text display/selection.
     pub payload: String,
+    /// The exact payload bytes as received, preserved for binary formats
+    /// (e.g. protobuf) that `payload`'s lossy decode would corrupt.
+    pub payload_raw: Vec<u8>,
     pub qos: u8,
     pub retained: bool,
     pub time: DateTime<Local>,
@@ -219,6 +223,7 @@ pub fn connect(conn: &Connection) -> Result<MqttHandle> {
                         id: 0, // App::push_message assigns the real id
                         topic: p.topic,
                         payload: String::from_utf8_lossy(&p.payload).to_string(),
+                        payload_raw: p.payload.to_vec(),
                         qos: match p.qos {
                             QoS::AtMostOnce => 0,
                             QoS::AtLeastOnce => 1,

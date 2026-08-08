@@ -256,6 +256,7 @@ impl App {
             Some(m) => self.plugins.inspect(&InspectMessage {
                 topic: m.topic.clone(),
                 payload: m.payload.clone(),
+                payload_raw: m.payload_raw.clone(),
                 qos: m.qos,
                 retained: m.retained,
             }),

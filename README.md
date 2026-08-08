@@ -140,6 +140,8 @@ Built-in plugins, each with its own demo:
 
 **xml-view** — pretty-prints XML payloads (syntax-colored) as an alternate Payload view (`i`). The Payload pane auto-selects the matching structured view per payload (JSON → json-view, XML → xml-view); `i` toggles raw ↔ that view, and the choice sticks as you move between messages.
 
+**protobuf-view** — decodes **binary protobuf** payloads into named fields as an alternate Payload view. Because the wire format carries no field names or types, you map topics to a `.proto` + message type **per connection** (edited in-app with `B`); the `.proto` is compiled at runtime (pure-Rust, no `protoc`) and matching payloads auto-decode to a syntax-colored field tree. Mapped topics whose bytes decode cleanly auto-select the `Protobuf` view; `i` toggles back to raw.
+
 **topic-alerts** — raises alerts (annotations + status) from **per-connection** rules, including numbers pulled from a JSON field.
 
 ![topic-alerts demo](assets/topic-alerts.gif)
@@ -263,8 +265,10 @@ src/
     schemas.rs / alerts_rules.rs / recordings.rs / templates.rs /
     generators.rs / topics.rs   shared models + validators + topic matching
     builtin/     bundled plugins (json-marker, json-view, xml-view,
-                 topic-alerts, json-schema, publish-templates,
-                 payload-generator, traffic-analytics, topic-recorder)
+                 protobuf-view, topic-alerts, json-schema,
+                 publish-templates, payload-generator,
+                 traffic-analytics, topic-recorder)
+                 + jsonfmt (shared JSON → styled-span colorizer)
 ```
 
 ## Contributing

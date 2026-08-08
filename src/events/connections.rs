@@ -14,6 +14,7 @@ pub(crate) fn connections_keys(app: &mut App, key: KeyEvent) {
         }
         KeyCode::Char('A') => app.open_alerts_editor(),
         KeyCode::Char('S') => app.open_schemas(),
+        KeyCode::Char('B') => app.open_protos(),
         KeyCode::Char('T') => app.open_theme(),
         KeyCode::Char('j') | KeyCode::Down => {
             if len > 0 {

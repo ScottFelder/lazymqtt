@@ -6,6 +6,7 @@ mod broker;
 mod connections;
 mod menu;
 mod plugins;
+mod protos;
 mod publish;
 mod recordings;
 mod schemas;
@@ -31,6 +32,8 @@ pub fn handle_key(app: &mut App, key: KeyEvent) {
         Screen::AlertRuleForm => alerts::alert_form_keys(app, key),
         Screen::Schemas => schemas::schemas_keys(app, key),
         Screen::SchemaForm => schemas::schema_form_keys(app, key),
+        Screen::Protos => protos::protos_keys(app, key),
+        Screen::ProtoForm => protos::proto_form_keys(app, key),
         Screen::Recordings => recordings::recordings_keys(app, key),
         Screen::RecordingEdit => recordings::recording_edit_keys(app, key),
         Screen::Theme => theme::theme_keys(app, key),
@@ -103,6 +106,11 @@ pub fn handle_paste(app: &mut App, data: String) {
                 app.schema_form.body.paste(&data);
             }
         }
+        Screen::ProtoForm => match app.proto_form.focus {
+            0 => app.proto_form.topic.push_str(&strip_newlines(&data)),
+            1 => app.proto_form.message_type.push_str(&strip_newlines(&data)),
+            _ => app.proto_form.body.paste(&data),
+        },
         Screen::ConnectionForm => {
             let is_port = app.form.field == 2;
             if let Some(s) = field_mut(&mut app.form) {

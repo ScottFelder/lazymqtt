@@ -182,6 +182,7 @@ mod tests {
                 id: 1,
                 topic: "sensors/a".into(),
                 payload: r#"{"x":1}"#.into(),
+                payload_raw: br#"{"x":1}"#.to_vec(),
                 qos: 0,
                 retained: false,
             })
