@@ -124,9 +124,11 @@ pub struct App {
 
     /// Which plugin's pane the `PluginPane` screen shows (its slot index).
     pub pane_plugin: usize,
-    // Which Payload-pane view is active: 0 = raw text, 1.. = plugin inspector
-    // views (in plugin order). Clamped when fewer views are available.
-    pub payload_view: usize,
+    // The preferred Payload-pane view, by inspector label: `None` = raw text,
+    // `Some(label)` = the plugin view with that label (e.g. "JSON"). Sticky
+    // across message and topic selection — a message that can't produce the
+    // preferred view falls back to raw without dropping the preference.
+    pub payload_view: Option<String>,
     pub error: Option<String>,
 
     // Keyboard text selection in the focused pane (Payload or History). Both
@@ -200,7 +202,7 @@ impl App {
             schema_edit_conn: String::new(),
             schema_edit_name: String::new(),
             schema_form: SchemaForm::default(),
-            payload_view: 0,
+            payload_view: None,
             error: None,
             sel_cursor: (0, 0),
             sel_anchor: None,
@@ -465,16 +467,20 @@ mod tests {
     }
 
     #[test]
-    fn payload_view_cycles_between_raw_and_json() {
+    fn payload_view_cycles_raw_json_xml() {
+        // Under cfg!(test) every built-in is enabled, so the toggle list is
+        // raw -> JSON -> XML (json-view before xml-view), independent of message.
         let mut app = App::new();
         app.push_message(msg("data", r#"{"a":1}"#)); // slash-free topic => row is the leaf
         app.tree_selected = 0;
 
-        // Raw by default; a JSON view is available (label present).
+        // Raw by default; a JSON view is available for this message.
+        assert_eq!(app.payload_view, None);
         assert_eq!(app.payload_view_label().as_deref(), Some("raw"));
 
-        // Cycle to the JSON view: payload_lines now shows pretty-printed JSON.
+        // Cycle to JSON: the body is pretty-printed JSON.
         app.cycle_payload_view();
+        assert_eq!(app.payload_view.as_deref(), Some("JSON"));
         assert_eq!(app.payload_view_label().as_deref(), Some("JSON"));
         let body: String = app
             .payload_lines()
@@ -487,9 +493,36 @@ mod tests {
             "expected pretty JSON, got: {body}"
         );
 
-        // Cycling wraps back to raw.
+        // Cycle to XML: this JSON message can't render XML, so the preference is
+        // XML but the pane falls back to raw.
         app.cycle_payload_view();
+        assert_eq!(app.payload_view.as_deref(), Some("XML"));
         assert_eq!(app.payload_view_label().as_deref(), Some("raw"));
+
+        // Cycle wraps back to raw.
+        app.cycle_payload_view();
+        assert_eq!(app.payload_view, None);
+    }
+
+    #[test]
+    fn payload_view_preference_is_sticky_across_messages() {
+        // Slash-free topics are top-level leaves, so each tree row is a message.
+        let mut app = App::new();
+        app.push_message(msg("one", r#"{"x":1}"#));
+        app.push_message(msg("two", r#"{"y":2}"#));
+
+        // Prefer JSON while the first message is selected.
+        app.tree_selected = 0;
+        app.cycle_payload_view();
+        assert_eq!(app.payload_view.as_deref(), Some("JSON"));
+        assert_eq!(app.payload_view_label().as_deref(), Some("JSON"));
+
+        // Select the other topic: selection changes but the JSON preference
+        // sticks and still renders (it must not reset to raw).
+        app.tree_selected = 1;
+        app.reset_message_view();
+        assert_eq!(app.payload_view.as_deref(), Some("JSON"));
+        assert_eq!(app.payload_view_label().as_deref(), Some("JSON"));
     }
 
     #[test]
@@ -597,14 +630,18 @@ mod tests {
     }
 
     #[test]
-    fn non_json_payload_has_no_alternate_view() {
+    fn plain_text_message_shows_no_view_indicator() {
         let mut app = App::new();
         app.push_message(msg("data", "plain text"));
         app.tree_selected = 0;
 
+        // Neither JSON nor XML applies, so the title shows no indicator...
         assert_eq!(app.payload_view_label(), None);
-        app.cycle_payload_view(); // no-op: only the raw view exists
-        assert_eq!(app.payload_view, 0);
+        // ...but the toggle still advances the (message-independent) preference,
+        // so it takes effect once a renderable message is selected.
+        app.cycle_payload_view();
+        assert_eq!(app.payload_view.as_deref(), Some("JSON"));
+        assert_eq!(app.payload_view_label(), None); // still nothing to show here
     }
 
     #[test]
