@@ -11,6 +11,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **xml-view** plugin — pretty-prints and syntax-colors XML payloads as an
   alternate Payload view, the XML counterpart to json-view.
+- **protobuf-view** plugin — decodes binary protobuf payloads into named fields.
+  Map topics to a `.proto` + message type per connection (edited in-app with
+  `B`); the `.proto` is compiled at runtime (pure-Rust via protox + prost-reflect,
+  no `protoc`) and matching payloads auto-decode to a syntax-colored field tree.
+- Message payloads now preserve their exact bytes (`Message.payload_raw`, also on
+  `InspectMessage`/`PluginEvent::MessageReceived`) so binary decoders like
+  protobuf-view see the real bytes, not the lossy UTF-8 rendering.
 
 ### Changed
 

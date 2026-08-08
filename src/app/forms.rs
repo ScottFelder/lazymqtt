@@ -3,7 +3,7 @@
 
 use crate::app::TextArea;
 use crate::config::{Connection, Subscription};
-use crate::plugin::{AlertCondition, AlertRule, AlertSeverity, SchemaMapping};
+use crate::plugin::{AlertCondition, AlertRule, AlertSeverity, ProtoMapping, SchemaMapping};
 use serde_json::Value;
 
 pub enum Status {
@@ -245,6 +245,66 @@ impl SchemaForm {
         Ok(SchemaMapping {
             topic: self.topic.trim().to_string(),
             schema,
+        })
+    }
+}
+
+/// Editable buffer backing the protobuf mapping form: a topic filter, the
+/// fully-qualified message type, and a multi-line `.proto` editor. `focus` is 0
+/// for topic, 1 for message type, 2 for the `.proto` body.
+pub struct ProtoForm {
+    pub editing_index: Option<usize>,
+    pub topic: String,
+    pub message_type: String,
+    pub body: TextArea,
+    pub focus: usize,
+    pub error: Option<String>,
+}
+
+impl Default for ProtoForm {
+    fn default() -> Self {
+        Self {
+            editing_index: None,
+            topic: String::new(),
+            message_type: "Message".to_string(),
+            body: TextArea::from_text(
+                "syntax = \"proto3\";\n\nmessage Message {\n  // int32 field = 1;\n}",
+            ),
+            focus: 0,
+            error: None,
+        }
+    }
+}
+
+impl ProtoForm {
+    pub const FIELD_COUNT: usize = 3; // topic, message_type, body
+
+    /// A form editing the mapping at `index`.
+    pub fn from_mapping(index: usize, mapping: &ProtoMapping) -> Self {
+        Self {
+            editing_index: Some(index),
+            topic: mapping.topic.clone(),
+            message_type: mapping.message_type.clone(),
+            body: TextArea::from_text(&mapping.proto),
+            focus: 0,
+            error: None,
+        }
+    }
+
+    /// Assemble a `ProtoMapping` from the form, checking the required text
+    /// fields. The `.proto` itself is validated by compiling it (in the app,
+    /// which knows the config dir), not here.
+    pub fn to_mapping(&self) -> Result<ProtoMapping, String> {
+        if self.topic.trim().is_empty() {
+            return Err("topic filter is required".into());
+        }
+        if self.message_type.trim().is_empty() {
+            return Err("message type is required".into());
+        }
+        Ok(ProtoMapping {
+            topic: self.topic.trim().to_string(),
+            message_type: self.message_type.trim().to_string(),
+            proto: self.body.text(),
         })
     }
 }

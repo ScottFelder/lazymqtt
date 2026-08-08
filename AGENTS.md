@@ -67,8 +67,9 @@ plugin/      In-process plugin API + host + built-in plugins.
   api.rs       PluginEvent / PluginAction / Annotation / Inspector* types.
   config.rs    per-plugin enable/disable, persisted under plugins/.
   builtin/     bundled plugins (json-marker, json-view, xml-view,
-               topic-alerts, json-schema, publish-templates,
-               payload-generator, traffic-analytics, topic-recorder).
+               protobuf-view, topic-alerts, json-schema,
+               publish-templates, payload-generator, traffic-analytics,
+               topic-recorder) + jsonfmt (shared JSON colorizer).
   topics.rs    shared MQTT topic-filter matching (`+`/`#`).
   schemas.rs   per-connection topic→schema mappings + subset validator.
   templates.rs global publish presets (topic/payload/QoS/retain).
@@ -190,7 +191,11 @@ only what it needs:
   `InspectorView.label` names the view (e.g. "JSON"). `App::payload_view`
   (`PayloadView`: Auto / Raw / Named) is sticky across messages; `Auto` (default)
   auto-selects the matching view per payload, and `i` toggles only among the
-  views the current message can produce plus raw.
+  views the current message can produce plus raw. For binary formats,
+  `InspectMessage`/`PluginEvent::MessageReceived` also carry `payload_raw:
+  Vec<u8>` (the exact bytes; `payload` is the lossy UTF-8 rendering) — protobuf-view
+  decodes those against a per-connection `.proto` compiled at runtime via protox +
+  prost-reflect.
 - `commands(&self) -> Vec<PluginCommand>` / `invoke(&mut self, id) -> Vec<PluginAction>`
   — contribute entries to the `m` command menu and handle them. Labels are
   computed in `commands()` so they can reflect state ("Stop recording (N msgs)").

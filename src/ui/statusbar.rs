@@ -107,6 +107,14 @@ pub(crate) fn draw_statusbar(f: &mut Frame, app: &App, area: Rect) {
             ("Esc", "back"),
         ],
         Screen::SchemaForm => &[("Tab", "field"), ("^S", "save"), ("Esc", "cancel")],
+        Screen::Protos => &[
+            ("j/k", "move"),
+            ("a", "add"),
+            ("e", "edit"),
+            ("d", "delete"),
+            ("Esc", "back"),
+        ],
+        Screen::ProtoForm => &[("Tab", "field"), ("^S", "save"), ("Esc", "cancel")],
         Screen::Recordings if app.recording_rename.is_some() => {
             &[("", "type new name"), ("Enter", "save"), ("Esc", "cancel")]
         }
