@@ -12,6 +12,23 @@ small in-process plugin system can observe the message stream and annotate or
 re-render it. The design goal is speed: an async MQTT task feeds a non-blocking
 render loop.
 
+## Working agreement (read first)
+
+Two rules apply to every change, no exceptions:
+
+1. **Branch per feature.** Never commit a new feature directly to `master`.
+   Start each feature (or non-trivial change) on its own branch off `master`
+   (`git checkout -b <name>`), and merge via pull request. `master` stays
+   releasable at all times.
+2. **Leave the code cleaner than you found it.** The codebase is growing, so
+   pay down technical debt as you go: when a change touches messy, duplicated,
+   or awkward code, refactor it in the same branch — extract shared helpers,
+   remove duplication, keep modules small and focused. Don't just bolt new
+   code on. (Example: the JSON→styled-span colorizer was extracted into
+   `plugin/builtin/jsonfmt.rs` so json-view and protobuf-view share it.) Keep
+   refactors scoped to what's relevant so the diff stays reviewable, and keep
+   `fmt`/`clippy`/`test` green.
+
 ## Build & run
 
 ```bash
