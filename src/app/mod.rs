@@ -19,7 +19,7 @@ mod view;
 pub use forms::{AlertForm, FormBuffer, PublishBuffer, SchemaForm, Status, SubForm};
 pub use screen::{Command, MenuAction, MenuItem, Screen, BROKER_COMMANDS};
 pub use textarea::TextArea;
-pub use view::{DetailKind, DetailLine, Focus, PaneFold};
+pub use view::{DetailKind, DetailLine, Focus, PaneFold, PayloadView};
 
 use crate::config::Config;
 use crate::mqtt::{Message, MqttHandle};
@@ -124,11 +124,10 @@ pub struct App {
 
     /// Which plugin's pane the `PluginPane` screen shows (its slot index).
     pub pane_plugin: usize,
-    // The preferred Payload-pane view, by inspector label: `None` = raw text,
-    // `Some(label)` = the plugin view with that label (e.g. "JSON"). Sticky
-    // across message and topic selection — a message that can't produce the
-    // preferred view falls back to raw without dropping the preference.
-    pub payload_view: Option<String>,
+    // The Payload-pane view preference (see `PayloadView`). Sticky across
+    // message/topic selection; `Auto` (the default) auto-selects the structured
+    // view matching each payload.
+    pub payload_view: PayloadView,
     pub error: Option<String>,
 
     // Keyboard text selection in the focused pane (Payload or History). Both
@@ -202,7 +201,7 @@ impl App {
             schema_edit_conn: String::new(),
             schema_edit_name: String::new(),
             schema_form: SchemaForm::default(),
-            payload_view: None,
+            payload_view: PayloadView::Auto,
             error: None,
             sel_cursor: (0, 0),
             sel_anchor: None,
@@ -467,20 +466,13 @@ mod tests {
     }
 
     #[test]
-    fn payload_view_cycles_raw_json_xml() {
-        // Under cfg!(test) every built-in is enabled, so the toggle list is
-        // raw -> JSON -> XML (json-view before xml-view), independent of message.
+    fn payload_view_toggles_structured_and_raw() {
         let mut app = App::new();
         app.push_message(msg("data", r#"{"a":1}"#)); // slash-free topic => row is the leaf
         app.tree_selected = 0;
 
-        // Raw by default; a JSON view is available for this message.
-        assert_eq!(app.payload_view, None);
-        assert_eq!(app.payload_view_label().as_deref(), Some("raw"));
-
-        // Cycle to JSON: the body is pretty-printed JSON.
-        app.cycle_payload_view();
-        assert_eq!(app.payload_view.as_deref(), Some("JSON"));
+        // Auto-selects the JSON view for a JSON payload (no keypress needed).
+        assert_eq!(app.payload_view, PayloadView::Auto);
         assert_eq!(app.payload_view_label().as_deref(), Some("JSON"));
         let body: String = app
             .payload_lines()
@@ -493,36 +485,64 @@ mod tests {
             "expected pretty JSON, got: {body}"
         );
 
-        // Cycle to XML: this JSON message can't render XML, so the preference is
-        // XML but the pane falls back to raw.
+        // `i` toggles to raw...
         app.cycle_payload_view();
-        assert_eq!(app.payload_view.as_deref(), Some("XML"));
+        assert_eq!(app.payload_view, PayloadView::Raw);
         assert_eq!(app.payload_view_label().as_deref(), Some("raw"));
 
-        // Cycle wraps back to raw.
+        // ...and straight back to JSON — no dead XML step for a JSON message.
         app.cycle_payload_view();
-        assert_eq!(app.payload_view, None);
+        assert_eq!(app.payload_view, PayloadView::Named("JSON".into()));
+        assert_eq!(app.payload_view_label().as_deref(), Some("JSON"));
+
+        app.cycle_payload_view();
+        assert_eq!(app.payload_view, PayloadView::Raw);
+    }
+
+    #[test]
+    fn payload_view_auto_selects_by_payload_type() {
+        // Slash-free topics are top-level leaves: row 0 = "j", row 1 = "x".
+        let mut app = App::new();
+        app.push_message(msg("j", r#"{"a":1}"#));
+        app.push_message(msg("x", "<r><c>hi</c></r>"));
+
+        app.tree_selected = 0; // JSON payload -> JSON view
+        assert_eq!(app.payload_view_label().as_deref(), Some("JSON"));
+
+        app.tree_selected = 1; // XML payload -> XML view, no keypress
+        assert_eq!(app.payload_view_label().as_deref(), Some("XML"));
+        let body: String = app
+            .payload_lines()
+            .iter()
+            .map(|l| l.text())
+            .collect::<Vec<_>>()
+            .join("\n");
+        assert!(
+            body.contains("<r>") && body.contains("<c>"),
+            "expected xml, got: {body}"
+        );
     }
 
     #[test]
     fn payload_view_preference_is_sticky_across_messages() {
-        // Slash-free topics are top-level leaves, so each tree row is a message.
         let mut app = App::new();
         app.push_message(msg("one", r#"{"x":1}"#));
         app.push_message(msg("two", r#"{"y":2}"#));
 
-        // Prefer JSON while the first message is selected.
+        // Auto shows JSON on both, without any keypress.
         app.tree_selected = 0;
-        app.cycle_payload_view();
-        assert_eq!(app.payload_view.as_deref(), Some("JSON"));
         assert_eq!(app.payload_view_label().as_deref(), Some("JSON"));
-
-        // Select the other topic: selection changes but the JSON preference
-        // sticks and still renders (it must not reset to raw).
         app.tree_selected = 1;
         app.reset_message_view();
-        assert_eq!(app.payload_view.as_deref(), Some("JSON"));
         assert_eq!(app.payload_view_label().as_deref(), Some("JSON"));
+
+        // Explicitly switch to raw; the choice sticks across message selection.
+        app.cycle_payload_view();
+        assert_eq!(app.payload_view, PayloadView::Raw);
+        app.tree_selected = 0;
+        app.reset_message_view();
+        assert_eq!(app.payload_view, PayloadView::Raw);
+        assert_eq!(app.payload_view_label().as_deref(), Some("raw"));
     }
 
     #[test]
@@ -635,13 +655,12 @@ mod tests {
         app.push_message(msg("data", "plain text"));
         app.tree_selected = 0;
 
-        // Neither JSON nor XML applies, so the title shows no indicator...
+        // Neither JSON nor XML applies, so the title shows no indicator and the
+        // toggle is a no-op (nothing to switch to for this message).
         assert_eq!(app.payload_view_label(), None);
-        // ...but the toggle still advances the (message-independent) preference,
-        // so it takes effect once a renderable message is selected.
         app.cycle_payload_view();
-        assert_eq!(app.payload_view.as_deref(), Some("JSON"));
-        assert_eq!(app.payload_view_label(), None); // still nothing to show here
+        assert_eq!(app.payload_view, PayloadView::Auto);
+        assert_eq!(app.payload_view_label(), None);
     }
 
     #[test]

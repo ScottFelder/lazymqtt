@@ -131,15 +131,6 @@ pub trait Plugin {
         None
     }
 
-    /// The stable label of the view this plugin provides (e.g. "JSON"),
-    /// independent of any message. This defines the plugin's slot in the
-    /// Payload pane's `i` toggle list, so the toggle order stays consistent even
-    /// on messages the plugin can't render. A view provider must return the same
-    /// label its `inspect` uses. Default: not a view provider.
-    fn inspector_label(&self) -> Option<&'static str> {
-        None
-    }
-
     /// Commands this plugin contributes to the `m` command menu. Called fresh
     /// each time the menu opens, so labels may reflect current state.
     fn commands(&self) -> Vec<PluginCommand> {
@@ -274,17 +265,6 @@ impl PluginHost {
             .iter()
             .filter(|s| s.enabled)
             .filter_map(|s| s.plugin.inspect(msg))
-            .collect()
-    }
-
-    /// Labels of the views offered by enabled view plugins, in plugin order —
-    /// the toggle list (after "raw") for the Payload pane's `i` key. Independent
-    /// of the current message, so the toggle order is stable.
-    pub fn inspector_labels(&self) -> Vec<&'static str> {
-        self.slots
-            .iter()
-            .filter(|s| s.enabled)
-            .filter_map(|s| s.plugin.inspector_label())
             .collect()
     }
 

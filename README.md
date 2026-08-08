@@ -138,7 +138,7 @@ Built-in plugins, each with its own demo:
 
 ![json-view demo](assets/json-view.gif)
 
-**xml-view** — pretty-prints XML payloads (syntax-colored) as an alternate Payload view (`i`). The `i` key cycles the Payload pane through raw and every enabled view plugin (e.g. raw → JSON → XML), and the chosen view sticks as you move between messages.
+**xml-view** — pretty-prints XML payloads (syntax-colored) as an alternate Payload view (`i`). The Payload pane auto-selects the matching structured view per payload (JSON → json-view, XML → xml-view); `i` toggles raw ↔ that view, and the choice sticks as you move between messages.
 
 **topic-alerts** — raises alerts (annotations + status) from **per-connection** rules, including numbers pulled from a JSON field.
 
