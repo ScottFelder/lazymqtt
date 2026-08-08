@@ -43,6 +43,8 @@ pub enum PluginEvent {
         id: u64,
         topic: String,
         payload: String,
+        /// Exact payload bytes, for binary decoders (e.g. protobuf).
+        payload_raw: Vec<u8>,
         qos: u8,
         retained: bool,
     },
@@ -154,6 +156,8 @@ pub struct PluginContext {
 pub struct InspectMessage {
     pub topic: String,
     pub payload: String,
+    /// Exact payload bytes, for binary decoders (e.g. protobuf).
+    pub payload_raw: Vec<u8>,
     pub qos: u8,
     pub retained: bool,
 }

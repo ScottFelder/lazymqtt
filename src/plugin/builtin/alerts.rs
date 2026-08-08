@@ -324,6 +324,7 @@ mod tests {
                 id: 1,
                 topic: "f/temp".into(),
                 payload: "85".into(),
+                payload_raw: b"85".to_vec(),
                 qos: 0,
                 retained: false,
             })
