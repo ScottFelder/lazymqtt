@@ -12,10 +12,24 @@ env:
   CARGO_TERM_COLOR: always
 
 jobs:
+  # Create the GitHub Release for this tag before the parallel build jobs run,
+  # so each build job only needs to upload its artifact to an existing release
+  # (avoiding a race condition where multiple jobs try to create the same release
+  # simultaneously and the finalization step returns "Not Found").
+  create-release:
+    name: Create GitHub Release
+    runs-on: ubuntu-latest
+    steps:
+      - name: Create release
+        uses: softprops/action-gh-release@v2
+        with:
+          draft: false
+
   # Build a release binary for each supported platform and attach a tarball to
   # the GitHub Release for this tag.
   build:
     name: Build ${{ matrix.target }}
+    needs: create-release
     strategy:
       fail-fast: false
       matrix:
