@@ -10,6 +10,7 @@ pub enum Screen {
     Publish,
     Subscribe,
     ClearRetained,
+    ConfirmDisconnect,
     Plugins,
     AlertRules,
     AlertRuleForm,

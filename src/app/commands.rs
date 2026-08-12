@@ -190,10 +190,9 @@ impl App {
                 self.screen = Screen::Plugins;
             }
             Command::Help => self.open_help(),
-            Command::Disconnect => {
-                self.disconnect();
-                self.screen = Screen::Connections;
-            }
+            // Disconnecting drops the live session, so confirm first. The
+            // ConfirmDisconnect modal's "yes" is what actually calls disconnect().
+            Command::Disconnect => self.screen = Screen::ConfirmDisconnect,
             Command::Quit => self.should_quit = true,
         }
     }

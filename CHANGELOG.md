@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Disconnecting from a broker (Esc, or the `m` menu's Disconnect) now asks for
+  confirmation first, so a stray keypress no longer drops the live session and
+  clears the topic tree and history.
+
 ## [0.1.4] - 2026-08-12
 
 ### Added

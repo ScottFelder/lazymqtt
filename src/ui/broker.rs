@@ -8,9 +8,43 @@ use ratatui::{
     layout::{Constraint, Direction, Layout, Rect},
     style::{Modifier, Style},
     text::{Line, Span},
-    widgets::{Block, Borders, List, ListItem, ListState, Paragraph, Wrap},
+    widgets::{Block, Borders, Clear, List, ListItem, ListState, Paragraph, Wrap},
     Frame,
 };
+
+/// Confirmation modal shown over the broker screen before disconnecting, so a
+/// stray Esc doesn't drop the live session by accident.
+pub(crate) fn draw_confirm_disconnect(f: &mut Frame, app: &App, area: Rect) {
+    let pal = &app.palette;
+    let host = app
+        .active_conn()
+        .map(|c| c.host.clone())
+        .unwrap_or_default();
+    let popup = center_rect(area, 60, 30);
+    f.render_widget(Clear, popup);
+    let lines = vec![
+        Line::from("Disconnect from the broker?"),
+        Line::from(""),
+        Line::from(Span::styled(
+            host,
+            Style::default().fg(pal.accent).add_modifier(Modifier::BOLD),
+        )),
+        Line::from(""),
+        Line::from(Span::styled(
+            "Ends the live session and clears the topic tree and history.",
+            Style::default().fg(pal.dim),
+        )),
+        Line::from(""),
+        Line::from(Span::styled(
+            "y/Enter: disconnect · n/Esc: cancel",
+            Style::default().fg(pal.dim),
+        )),
+    ];
+    let p = Paragraph::new(lines)
+        .block(title_block("Disconnect", pal))
+        .wrap(Wrap { trim: false });
+    f.render_widget(p, popup);
+}
 
 pub(crate) fn draw_broker(f: &mut Frame, app: &App, area: Rect) {
     let pal = &app.palette;
