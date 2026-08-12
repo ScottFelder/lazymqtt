@@ -12,24 +12,12 @@ env:
   CARGO_TERM_COLOR: always
 
 jobs:
-  # Create the GitHub Release for this tag before the parallel build jobs run,
-  # so each build job only needs to upload its artifact to an existing release
-  # (avoiding a race condition where multiple jobs try to create the same release
-  # simultaneously and the finalization step returns "Not Found").
-  create-release:
-    name: Create GitHub Release
-    runs-on: ubuntu-latest
-    steps:
-      - name: Create release
-        uses: softprops/action-gh-release@v2
-        with:
-          draft: false
-
-  # Build a release binary for each supported platform and attach a tarball to
-  # the GitHub Release for this tag.
+  # Build a release binary for each supported platform and upload it as a
+  # workflow artifact. Nothing here touches the GitHub Release — the single
+  # `release` job below attaches every tarball at once, so the release API is
+  # never hit by concurrent jobs.
   build:
     name: Build ${{ matrix.target }}
-    needs: create-release
     strategy:
       fail-fast: false
       matrix:
@@ -57,10 +45,23 @@ jobs:
         with:
           name: ${{ matrix.target }}
           path: lazymqtt-${{ matrix.target }}.tar.gz
+
+  # Attach every built tarball to the GitHub Release in a single job. Doing this
+  # once (instead of from each matrix job) avoids the race where concurrent
+  # `action-gh-release` calls collide on the same release and one fails.
+  release:
+    name: Attach binaries to release
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: dist
       - name: Attach to release
         uses: softprops/action-gh-release@v2
         with:
-          files: lazymqtt-${{ matrix.target }}.tar.gz
+          files: dist/**/*.tar.gz
 
   # Publish the crate to crates.io so users can `cargo install lazymqtt`.
   # Requires a CARGO_REGISTRY_TOKEN repository secret (from crates.io).
