@@ -347,6 +347,51 @@ mod tests {
     }
 
     #[test]
+    fn esc_confirms_before_disconnecting() {
+        use crate::app::Screen;
+        use crate::events::handle_key;
+        use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
+
+        let esc = |app: &mut App| handle_key(app, KeyEvent::new(KeyCode::Esc, KeyModifiers::NONE));
+        let press = |app: &mut App, c: char| {
+            handle_key(app, KeyEvent::new(KeyCode::Char(c), KeyModifiers::NONE))
+        };
+
+        // Esc on the broker screen opens the confirm modal — it does NOT
+        // disconnect or clear the tree yet.
+        let mut app = App::new();
+        app.tree.insert(msg("t", "hello"));
+        app.screen = Screen::Broker;
+        esc(&mut app);
+        assert!(matches!(app.screen, Screen::ConfirmDisconnect));
+        assert_eq!(app.tree.rows(&app.expanded).len(), 1, "session left intact");
+
+        // Cancelling (n) returns to the broker with everything still there.
+        press(&mut app, 'n');
+        assert!(matches!(app.screen, Screen::Broker));
+        assert_eq!(app.tree.rows(&app.expanded).len(), 1);
+
+        // Confirming (y) tears the session down and returns to the connections list.
+        esc(&mut app);
+        press(&mut app, 'y');
+        assert!(matches!(app.screen, Screen::Connections));
+        assert_eq!(
+            app.tree.rows(&app.expanded).len(),
+            0,
+            "tree cleared on disconnect"
+        );
+
+        // A pending text selection cancels first; Esc doesn't open the modal mid-select.
+        let mut app = App::new();
+        app.tree.insert(msg("t", "hello"));
+        app.screen = Screen::Broker;
+        app.sel_anchor = Some((0, 0));
+        esc(&mut app);
+        assert!(matches!(app.screen, Screen::Broker));
+        assert!(app.sel_anchor.is_none());
+    }
+
+    #[test]
     fn yank_includes_last_char_under_cursor() {
         let mut app = App::new();
         app.tree.insert(msg("t", "hello"));
