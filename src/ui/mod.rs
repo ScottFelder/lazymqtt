@@ -57,6 +57,10 @@ pub fn draw(f: &mut Frame, app: &App) {
             broker::draw_broker(f, app, chunks[0]);
             publish::draw_clear_retained(f, &app.clear_topic, chunks[0], pal);
         }
+        Screen::ConfirmDisconnect => {
+            broker::draw_broker(f, app, chunks[0]);
+            broker::draw_confirm_disconnect(f, app, chunks[0]);
+        }
         Screen::Plugins => plugins::draw_plugins(f, app, chunks[0]),
         Screen::AlertRules => alerts::draw_alert_rules(f, app, chunks[0]),
         Screen::AlertRuleForm => alerts::draw_alert_rule_form(f, app, chunks[0]),
