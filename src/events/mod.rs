@@ -27,6 +27,7 @@ pub fn handle_key(app: &mut App, key: KeyEvent) {
         Screen::Publish => publish::publish_keys(app, key),
         Screen::Subscribe => publish::subscribe_keys(app, key),
         Screen::ClearRetained => publish::clear_retained_keys(app, key),
+        Screen::ConfirmDisconnect => broker::confirm_disconnect_keys(app, key),
         Screen::Plugins => plugins::plugins_keys(app, key),
         Screen::AlertRules => alerts::alert_rules_keys(app, key),
         Screen::AlertRuleForm => alerts::alert_form_keys(app, key),

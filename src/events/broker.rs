@@ -68,8 +68,8 @@ pub(crate) fn broker_keys(app: &mut App, key: KeyEvent) {
             if app.sel_anchor.is_some() {
                 app.sel_anchor = None;
             } else {
-                app.disconnect();
-                app.screen = Screen::Connections;
+                // Ask before dropping the live broker session.
+                app.run_command(Command::Disconnect);
             }
         }
         KeyCode::Char('q') if key.modifiers.contains(KeyModifiers::CONTROL) => {
@@ -138,5 +138,14 @@ pub(crate) fn broker_keys(app: &mut App, key: KeyEvent) {
         KeyCode::Char('R') => app.run_command(Command::Recordings),
         KeyCode::Char('T') => app.run_command(Command::Theme),
         _ => {}
+    }
+}
+
+/// The disconnect-confirmation modal: `y`/Enter drops the session and returns to
+/// the connections list; anything else (n/Esc) cancels back to the broker.
+pub(crate) fn confirm_disconnect_keys(app: &mut App, key: KeyEvent) {
+    match key.code {
+        KeyCode::Char('y') | KeyCode::Char('Y') | KeyCode::Enter => app.confirm_disconnect(),
+        _ => app.screen = Screen::Broker,
     }
 }

@@ -118,4 +118,12 @@ impl App {
         self.annotations.clear();
         self.reset_message_view();
     }
+
+    /// Accept the disconnect confirmation: drop the session and return to the
+    /// connections list. `Command::Disconnect` only opens the confirm modal;
+    /// this is what actually tears the connection down.
+    pub fn confirm_disconnect(&mut self) {
+        self.disconnect();
+        self.screen = Screen::Connections;
+    }
 }
