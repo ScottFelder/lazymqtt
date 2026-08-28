@@ -90,6 +90,7 @@ pub(crate) fn form_keys(app: &mut App, key: KeyEvent) {
             f.field = (f.field + FormBuffer::FIELD_COUNT - 1) % FormBuffer::FIELD_COUNT
         }
         KeyCode::Char(' ') if f.field == 6 => f.tls = !f.tls,
+        KeyCode::Char(' ') if f.field == 7 => f.tls_verify = !f.tls_verify,
         KeyCode::Char(c) => {
             let is_port = f.field == 2;
             if let Some(s) = field_mut(f) {
@@ -116,7 +117,7 @@ pub(crate) fn field_mut(f: &mut FormBuffer) -> Option<&mut String> {
         3 => Some(&mut f.client_id),
         4 => Some(&mut f.username),
         5 => Some(&mut f.password),
-        7 => Some(&mut f.topics),
+        8 => Some(&mut f.topics),
         _ => None,
     }
 }
@@ -145,6 +146,7 @@ fn save_form(app: &mut App) {
     conn.username = f.username.trim().into();
     conn.password = f.password.clone();
     conn.tls = f.tls;
+    conn.tls_verify = f.tls_verify;
     conn.subscriptions = if subs.is_empty() {
         vec![Subscription::new("#")]
     } else {
