@@ -84,6 +84,7 @@ pub(crate) fn draw_statusbar(f: &mut Frame, app: &App, area: Rect) {
         Screen::Publish => &[("Tab", "field"), ("Enter", "publish"), ("Esc", "cancel")],
         Screen::Subscribe => &[("Enter", "subscribe"), ("Esc", "cancel")],
         Screen::ClearRetained => &[("y/Enter", "clear retained"), ("n/Esc", "cancel")],
+        Screen::ConfirmDisconnect => &[("y/Enter", "disconnect"), ("n/Esc", "cancel")],
         Screen::CommandMenu if app.menu_plugin.is_some() => &[
             ("j/k", "move"),
             ("Enter/→", "run"),
