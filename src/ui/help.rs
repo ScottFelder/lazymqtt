@@ -157,6 +157,13 @@ fn core_help_lines() -> Vec<Line<'static>> {
         Line::from("  i                 cycle Payload view (raw ↔ plugin views, e.g. JSON)"),
         Line::from("  Enter (History)   expand/collapse the entry under the cursor"),
         Line::from(""),
+        Line::from("Mouse (Topics, Payload, History):"),
+        Line::from("  click         focus a pane; select a topic / place the cursor"),
+        Line::from("  double-click  expand/collapse a topic, or a History entry"),
+        Line::from("  drag          select text in the Payload/History pane (copies on release)"),
+        Line::from("  wheel         scroll the pane under the pointer"),
+        Line::from("  (hold Option/Shift for your terminal's own text selection)"),
+        Line::from(""),
         Line::from("Clipboard:"),
         Line::from("  Paste into any input field, incl. the publish payload."),
     ]

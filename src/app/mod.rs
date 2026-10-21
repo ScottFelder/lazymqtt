@@ -8,6 +8,7 @@ mod broker;
 mod commands;
 mod connection;
 mod forms;
+mod mouse;
 mod protos;
 mod recordings;
 mod schemas;
@@ -146,6 +147,10 @@ pub struct App {
     // visual selection begins; while it is None the cursor just marks a position.
     pub sel_cursor: (usize, usize),
     pub sel_anchor: Option<(usize, usize)>,
+
+    // Last left-button press (time + cell), used only to detect a double-click
+    // for mouse input; see `app::mouse`.
+    pub last_click: Option<(std::time::Instant, u16, u16)>,
 }
 
 impl App {
@@ -221,6 +226,7 @@ impl App {
             error: None,
             sel_cursor: (0, 0),
             sel_anchor: None,
+            last_click: None,
         }
     }
 }
