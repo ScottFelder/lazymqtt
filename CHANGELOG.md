@@ -9,11 +9,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- Mouse support in the Topics, Payload, and History panes: click to focus a
-  pane and select a topic or place the cursor, double-click to expand/collapse
-  a topic or History entry, drag to select text in a message pane (copied to the
-  clipboard on release), and the wheel scrolls the pane under the pointer. (The
-  terminal's own click-drag copy still works while holding Option/Shift.)
+- Mouse support across the Connections list and the broker's Topics, Payload,
+  and History panes. On the Connections list: click to select, double-click to
+  connect, wheel to move the selection. In the panes: click to focus and select
+  a topic or place the cursor, double-click to expand/collapse a topic or History
+  entry, drag to select text in a message pane (copied to the clipboard on
+  release), and the wheel scrolls the pane under the pointer. (The terminal's own
+  click-drag copy still works while holding Option/Shift.)
 - Disconnecting from a broker (Esc, or the `m` menu's Disconnect) now asks for
   confirmation first, so a stray keypress no longer drops the live session and
   clears the topic tree and history.

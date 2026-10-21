@@ -1,7 +1,8 @@
-//! Mouse input for the broker screen's three content panes. Translates screen
-//! coordinates into pane-local line/column (via `crate::layout`) and drives the
-//! matching `App` mouse action; it never renders and holds no logic of its own
-//! beyond hit-testing and double-click detection.
+//! Mouse input for the Connections list and the broker screen's three content
+//! panes. Translates screen coordinates into a row / pane-local line+column
+//! (via `crate::layout`) and drives the matching `App` mouse action; it never
+//! renders and holds no logic of its own beyond hit-testing and double-click
+//! detection.
 
 use crate::app::{App, Focus, Screen};
 use crate::layout::{self, BrokerPanes};
@@ -12,10 +13,39 @@ use std::time::{Duration, Instant};
 const DOUBLE_CLICK: Duration = Duration::from_millis(400);
 
 pub(super) fn handle_mouse(app: &mut App, me: MouseEvent, full: Rect) {
-    // Mouse input currently drives only the broker screen's content panes.
-    if app.screen != Screen::Broker {
-        return;
+    match app.screen {
+        Screen::Connections => connections_mouse(app, me, full),
+        Screen::Broker => broker_mouse(app, me, full),
+        _ => {}
     }
+}
+
+/// The Connections list fills the content area with a one-cell border: click a
+/// row to select it, double-click to connect, wheel to move the selection.
+fn connections_mouse(app: &mut App, me: MouseEvent, full: Rect) {
+    let (content, _) = layout::screen_split(full);
+    let (col, row) = (me.column, me.row);
+    match me.kind {
+        MouseEventKind::Down(MouseButton::Left) => {
+            app.error = None;
+            let double = is_double_click(app, col, row);
+            if let Some((r, _)) = layout::hit_inner(content, col, row) {
+                let idx = layout::scroll_offset(app.conn_selected, inner_h(content)) + r;
+                if idx < app.config.connections.len() {
+                    app.mouse_select_connection(idx);
+                    if double {
+                        app.connect_selected();
+                    }
+                }
+            }
+        }
+        MouseEventKind::ScrollDown => app.mouse_scroll_connections(true),
+        MouseEventKind::ScrollUp => app.mouse_scroll_connections(false),
+        _ => {}
+    }
+}
+
+fn broker_mouse(app: &mut App, me: MouseEvent, full: Rect) {
     let (content, _) = layout::screen_split(full);
     let panes = layout::broker_panes(content, app.collapsed);
     let (col, row) = (me.column, me.row);

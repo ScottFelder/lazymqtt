@@ -96,6 +96,29 @@ impl App {
         }
     }
 
+    /// Select a connection row on the Connections list (clamped to the list).
+    pub fn mouse_select_connection(&mut self, idx: usize) {
+        let len = self.config.connections.len();
+        if len == 0 {
+            return;
+        }
+        self.conn_selected = idx.min(len - 1);
+    }
+
+    /// Wheel scroll on the Connections list: move the selection one row, clamped
+    /// at the ends (no wrap, matching how a scroll feels).
+    pub fn mouse_scroll_connections(&mut self, down: bool) {
+        let len = self.config.connections.len();
+        if len == 0 {
+            return;
+        }
+        if down {
+            self.conn_selected = (self.conn_selected + 1).min(len - 1);
+        } else {
+            self.conn_selected = self.conn_selected.saturating_sub(1);
+        }
+    }
+
     /// Wheel scroll within a pane: moves that pane's cursor/selection one step,
     /// which also scrolls the view (matching the keyboard j/k behavior).
     pub fn mouse_scroll(&mut self, pane: Focus, down: bool) {
@@ -141,6 +164,38 @@ mod tests {
             retained: false,
             time: Local::now(),
         }
+    }
+
+    #[test]
+    fn connection_select_and_scroll_clamp() {
+        use crate::config::Connection;
+        let mut app = App::new();
+        app.config.connections = vec![
+            Connection::new("a", "h", 1883),
+            Connection::new("b", "h", 1883),
+            Connection::new("c", "h", 1883),
+        ];
+        app.conn_selected = 0;
+
+        app.mouse_select_connection(2);
+        assert_eq!(app.conn_selected, 2);
+        app.mouse_select_connection(99); // past the end clamps to the last row
+        assert_eq!(app.conn_selected, 2);
+
+        app.mouse_scroll_connections(true); // already last: stays (no wrap)
+        assert_eq!(app.conn_selected, 2);
+        app.mouse_scroll_connections(false);
+        assert_eq!(app.conn_selected, 1);
+    }
+
+    #[test]
+    fn connection_mouse_is_noop_without_connections() {
+        let mut app = App::new();
+        app.config.connections.clear();
+        app.conn_selected = 0;
+        app.mouse_select_connection(3);
+        app.mouse_scroll_connections(true);
+        assert_eq!(app.conn_selected, 0);
     }
 
     #[test]

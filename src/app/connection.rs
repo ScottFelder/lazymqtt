@@ -1,4 +1,4 @@
-use crate::app::{App, PublishBuffer, Screen, Status};
+use crate::app::{App, Focus, PublishBuffer, Screen, Status};
 use crate::config::Connection;
 use crate::mqtt::{Message, MqttCommand};
 use crate::plugin::{Annotation, PluginAction, PluginEvent};
@@ -125,5 +125,34 @@ impl App {
     pub fn confirm_disconnect(&mut self) {
         self.disconnect();
         self.screen = Screen::Connections;
+    }
+
+    /// Connect to the currently selected connection and open the broker screen.
+    /// Shared by the Enter key and a mouse double-click on the Connections list.
+    /// Any live session is torn down first so its background task can't linger
+    /// and reconnect (two clients with the same id fight each other).
+    pub fn connect_selected(&mut self) {
+        let idx = self.conn_selected;
+        let Some(conn) = self.config.connections.get(idx).cloned() else {
+            return;
+        };
+        if self.handle.is_some() {
+            self.disconnect();
+        }
+        match crate::mqtt::connect(&conn) {
+            Ok(handle) => {
+                self.handle = Some(handle);
+                self.active = Some(idx);
+                self.status = Status::Connecting;
+                self.tree.clear();
+                self.history.clear();
+                self.expanded.clear();
+                self.tree_selected = 0;
+                self.reset_message_view();
+                self.focus = Focus::Tree;
+                self.screen = Screen::Broker;
+            }
+            Err(e) => self.error = Some(e.to_string()),
+        }
     }
 }
