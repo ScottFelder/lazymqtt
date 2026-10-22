@@ -1,11 +1,11 @@
 //! The main broker screen: topic tree (left) and the Payload/History message
 //! panes (right), plus the detail-line rendering they share.
 use super::common::*;
-use crate::app::{App, DetailKind, DetailLine, Focus, PaneFold};
+use crate::app::{App, DetailKind, DetailLine, Focus};
 use crate::plugin::{InspectorStyle, Severity};
 use crate::theme::Palette;
 use ratatui::{
-    layout::{Constraint, Direction, Layout, Rect},
+    layout::Rect,
     style::{Modifier, Style},
     text::{Line, Span},
     widgets::{Block, Borders, Clear, List, ListItem, ListState, Paragraph, Wrap},
@@ -48,10 +48,7 @@ pub(crate) fn draw_confirm_disconnect(f: &mut Frame, app: &App, area: Rect) {
 
 pub(crate) fn draw_broker(f: &mut Frame, app: &App, area: Rect) {
     let pal = &app.palette;
-    let cols = Layout::default()
-        .direction(Direction::Horizontal)
-        .constraints([Constraint::Percentage(50), Constraint::Percentage(50)])
-        .split(area);
+    let panes = crate::layout::broker_panes(area, app.collapsed);
 
     // Left: topic tree
     let rows = app.tree.rows(&app.expanded);
@@ -109,12 +106,12 @@ pub(crate) fn draw_broker(f: &mut Frame, app: &App, area: Rect) {
     if !rows.is_empty() {
         state.select(Some(app.tree_selected.min(rows.len() - 1)));
     }
-    f.render_stateful_widget(tree, cols[0], &mut state);
-    render_vscrollbar(f, cols[0], rows.len(), state.offset(), pal);
+    f.render_stateful_widget(tree, panes.tree, &mut state);
+    render_vscrollbar(f, panes.tree, rows.len(), state.offset(), pal);
 
     // Right: an outer "Messages" container (peer to Topics) holding the Payload
-    // and History panes as nested sub-panes. Its border highlights whenever a
-    // sub-pane has focus. The container itself carries no [n] jump number.
+    // and History sub-panes. Its border highlights whenever a sub-pane has
+    // focus; the nested split itself lives in `crate::layout::broker_panes`.
     let messages_border = if app.focus == Focus::Tree {
         pal.dim
     } else {
@@ -127,37 +124,10 @@ pub(crate) fn draw_broker(f: &mut Frame, app: &App, area: Rect) {
             " Messages ",
             Style::default().fg(pal.accent).add_modifier(Modifier::BOLD),
         ));
-    let inner = messages.inner(cols[1]);
-    f.render_widget(messages, cols[1]);
+    f.render_widget(messages, panes.messages);
 
-    // Payload (selected message) on top, History (all messages) below. Both
-    // expanded => an even split; one collapsed => it shrinks to a title bar and
-    // the other fills the rest. A collapsed pane is COLLAPSED_ROWS tall.
-    const COLLAPSED_ROWS: u16 = 3;
-    let (constraints, payload_collapsed, history_collapsed) = match app.collapsed {
-        PaneFold::None => (
-            [Constraint::Percentage(50), Constraint::Percentage(50)],
-            false,
-            false,
-        ),
-        PaneFold::Payload => (
-            [Constraint::Length(COLLAPSED_ROWS), Constraint::Min(1)],
-            true,
-            false,
-        ),
-        PaneFold::History => (
-            [Constraint::Min(1), Constraint::Length(COLLAPSED_ROWS)],
-            false,
-            true,
-        ),
-    };
-    let right = Layout::default()
-        .direction(Direction::Vertical)
-        .constraints(constraints)
-        .split(inner);
-
-    draw_payload(f, app, right[0], payload_collapsed);
-    draw_history(f, app, right[1], history_collapsed);
+    draw_payload(f, app, panes.payload, panes.payload_collapsed);
+    draw_history(f, app, panes.history, panes.history_collapsed);
 }
 
 /// Top-right pane: the payload (and metadata) of whichever message is

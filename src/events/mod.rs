@@ -5,6 +5,7 @@ mod alerts;
 mod broker;
 mod connections;
 mod menu;
+mod mouse;
 mod plugins;
 mod protos;
 mod publish;
@@ -67,6 +68,12 @@ pub fn handle_key(app: &mut App, key: KeyEvent) {
             }
         },
     }
+}
+
+/// Route a mouse event to the broker screen's content panes. `area` is the full
+/// terminal rect, so the handler can reconstruct where each pane was drawn.
+pub fn handle_mouse(app: &mut App, me: crossterm::event::MouseEvent, area: ratatui::layout::Rect) {
+    mouse::handle_mouse(app, me, area);
 }
 
 /// Insert clipboard text (from a bracketed paste) into the focused input.

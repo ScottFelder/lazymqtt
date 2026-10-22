@@ -18,16 +18,13 @@ mod statusbar;
 mod theme;
 
 use crate::app::{App, Screen};
-use ratatui::{
-    layout::{Constraint, Direction, Layout},
-    Frame,
-};
+use ratatui::Frame;
 
 pub fn draw(f: &mut Frame, app: &App) {
-    let chunks = Layout::default()
-        .direction(Direction::Vertical)
-        .constraints([Constraint::Min(1), Constraint::Length(1)])
-        .split(f.area());
+    // One source of truth for the content/status-bar split (shared with the
+    // mouse hit-testing in `crate::layout`).
+    let (content, status) = crate::layout::screen_split(f.area());
+    let chunks = [content, status];
 
     let pal = &app.palette;
     match app.screen {

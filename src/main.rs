@@ -2,6 +2,7 @@ mod app;
 mod clipboard;
 mod config;
 mod events;
+mod layout;
 mod mqtt;
 mod paths;
 mod plugin;
@@ -12,7 +13,10 @@ mod ui;
 use anyhow::Result;
 use app::{App, Status};
 use crossterm::{
-    event::{self, DisableBracketedPaste, EnableBracketedPaste, Event},
+    event::{
+        self, DisableBracketedPaste, DisableMouseCapture, EnableBracketedPaste, EnableMouseCapture,
+        Event,
+    },
     execute,
     terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
 };
@@ -61,10 +65,19 @@ async fn main() -> Result<()> {
 
     enable_raw_mode()?;
     let mut stdout = io::stdout();
-    // No mouse capture: leaving the mouse to the terminal keeps native
-    // click-drag text selection (and copy) working in the message pane.
-    // Bracketed paste lets a paste arrive as a single Event::Paste.
-    execute!(stdout, EnterAlternateScreen, EnableBracketedPaste)?;
+    // Capture the mouse so clicks, drags, and the wheel drive the content panes
+    // (select a topic, position/drag-select text, scroll). This takes over the
+    // mouse from the terminal, so the terminal's own click-drag copy no longer
+    // works directly — the app's drag-to-select + auto-copy replaces it, and
+    // most terminals still offer native selection while a modifier (Option on
+    // macOS, Shift elsewhere) is held. Bracketed paste lets a paste arrive as a
+    // single Event::Paste.
+    execute!(
+        stdout,
+        EnterAlternateScreen,
+        EnableBracketedPaste,
+        EnableMouseCapture
+    )?;
     let backend = CrosstermBackend::new(stdout);
     let mut terminal = Terminal::new(backend)?;
 
@@ -75,7 +88,8 @@ async fn main() -> Result<()> {
     execute!(
         terminal.backend_mut(),
         LeaveAlternateScreen,
-        DisableBracketedPaste
+        DisableBracketedPaste,
+        DisableMouseCapture
     )?;
     terminal.show_cursor()?;
 
@@ -139,6 +153,13 @@ async fn run<B: ratatui::backend::Backend>(
                     events::handle_key(app, key);
                 }
                 Event::Paste(data) => events::handle_paste(app, data),
+                Event::Mouse(me) => {
+                    // The handler reconstructs pane rects from the full terminal
+                    // area, matching what was just drawn.
+                    let size = terminal.size()?;
+                    let area = ratatui::layout::Rect::new(0, 0, size.width, size.height);
+                    events::handle_mouse(app, me, area);
+                }
                 _ => {}
             }
         }

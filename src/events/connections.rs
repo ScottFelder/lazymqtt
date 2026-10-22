@@ -1,6 +1,5 @@
-use crate::app::{App, Focus, FormBuffer, Screen, Status};
+use crate::app::{App, FormBuffer, Screen};
 use crate::config::{Connection, Subscription};
-use crate::mqtt::{self};
 use crossterm::event::{KeyCode, KeyEvent};
 
 pub(crate) fn connections_keys(app: &mut App, key: KeyEvent) {
@@ -49,36 +48,8 @@ pub(crate) fn connections_keys(app: &mut App, key: KeyEvent) {
                 }
             }
         }
-        KeyCode::Enter => start_connection(app),
+        KeyCode::Enter => app.connect_selected(),
         _ => {}
-    }
-}
-
-fn start_connection(app: &mut App) {
-    let idx = app.conn_selected;
-    let Some(conn) = app.config.connections.get(idx).cloned() else {
-        return;
-    };
-    // Tear down any live connection first so its background task stops instead
-    // of lingering and reconnecting — two clients with the same id would
-    // otherwise fight ("connection closed by peer").
-    if app.handle.is_some() {
-        app.disconnect();
-    }
-    match mqtt::connect(&conn) {
-        Ok(handle) => {
-            app.handle = Some(handle);
-            app.active = Some(idx);
-            app.status = Status::Connecting;
-            app.tree.clear();
-            app.history.clear();
-            app.expanded.clear();
-            app.tree_selected = 0;
-            app.reset_message_view();
-            app.focus = Focus::Tree;
-            app.screen = Screen::Broker;
-        }
-        Err(e) => app.error = Some(e.to_string()),
     }
 }
 

@@ -61,6 +61,7 @@ app/         The App state object + its behavior, one submodule per concern.
   connection.rs  connect/disconnect, send, push_message, plugin dispatch.
   commands.rs  the command registry entry point + `m`-menu building.
   broker.rs    topic selection, payload/history line building, text selection.
+  mouse.rs     mouse actions on the three content panes (click/drag/wheel).
   alerts.rs / schemas.rs / recordings.rs / theme.rs  each screen's App-side logic.
   textarea.rs  reusable multi-line text buffer + cursor (recording & schema editors).
 config.rs    Connection + Subscription structs; JSON persistence to disk.
@@ -70,13 +71,15 @@ theme.rs     Theme (color specs) + Palette (resolved Colors) + presets +
              theme.json persistence. See the theming note below.
 mqtt.rs      Async client task. Message, MqttEvent, MqttCommand, MqttHandle.
 tree.rs      TopicTree: aggregates messages into a hierarchy split on '/'.
+layout.rs    pane geometry shared by ui (drawing) and events (mouse hit-test).
 ui/          ratatui rendering, one module per screen; never mutates state.
   mod.rs       `draw` dispatcher (Screen -> screen module).
   common.rs    shared widgets: title_block, pane_title, scrollbar, center_rect.
   <screen>.rs  broker, connections, publish, alerts, recordings, theme,
                plugins, menu, help, statusbar.
 events/      keyboard/paste handling, one module per screen; mutates App.
-  mod.rs       handle_key/handle_paste dispatchers + strip_newlines.
+  mod.rs       handle_key/handle_paste/handle_mouse dispatchers + strip_newlines.
+  mouse.rs     broker-pane mouse hit-testing (click/drag/wheel + double-click).
   <screen>.rs  broker, connections, publish, alerts, recordings, theme,
                plugins, menu.
 plugin/      In-process plugin API + host + built-in plugins.
